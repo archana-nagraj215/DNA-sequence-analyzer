@@ -1,11 +1,98 @@
 "use client";
 
 import { useState } from "react";
+import Papa from "papaparse";
 
 export default function Home() {
   const [sequence, setSequence] = useState("");
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+
+  const [csvData, setCsvData] = useState<Record<string, string>[]>([]);
+  const [csvFileName, setCsvFileName] = useState(""); 
+
+  const [csvResults, setCsvResults] = useState<any[]>([]);
+  const [csvAnalyzing, setCsvAnalyzing] = useState(false);
+
+  function handleCSVUpload(event: React.ChangeEvent<HTMLInputElement>) {
+  const file = event.target.files?.[0];
+
+  if (!file) return;
+
+  setCsvFileName(file.name);
+
+  Papa.parse<Record<string, string>>(file, {
+    header: true,
+    skipEmptyLines: true,
+
+    complete: (results) => {
+      console.log("CSV data:", results.data);
+
+      setCsvData(results.data);
+    },
+
+    error: (error) => {
+      console.error("CSV parsing error:", error);
+      alert("There was a problem reading the CSV file.");
+    },
+  });
+}
+
+async function analyzeCSV() {
+  if (csvData.length === 0) {
+    alert("Please upload a CSV file first.");
+    return;
+  }
+
+  setCsvAnalyzing(true);
+  setCsvResults([]);
+
+  const results = [];
+
+  for (const row of csvData) {
+    const sampleName = row.sample_name;
+    const sequence = row.sequence;
+
+    if (!sequence) {
+      results.push({
+        sample_name: sampleName || "Unknown",
+        error: "No DNA sequence found",
+      });
+
+      continue;
+    }
+
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sequence: sequence,
+        }),
+      });
+
+      const data = await response.json();
+
+      results.push({
+        sample_name: sampleName,
+        sequence: sequence,
+        ...data,
+      });
+
+    } catch (error) {
+      results.push({
+        sample_name: sampleName,
+        sequence: sequence,
+        error: "Unable to analyze this sequence",
+      });
+    }
+  }
+
+  setCsvResults(results);
+  setCsvAnalyzing(false);
+}
 
   async function analyzeDNA() {
     if (!sequence.trim()) {
@@ -350,6 +437,350 @@ ATGCCGTAGCTA"
 
         </section>
       )}
+
+  {/* CSV Upload */}
+<section className="relative z-10 max-w-7xl mx-auto px-6 pb-24">
+
+  <div className="rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6 md:p-8">
+
+    {/* CSV Heading */}
+    <div className="mb-6">
+      <h2 className="text-2xl md:text-3xl font-bold">
+        Upload DNA CSV
+      </h2>
+
+      <p className="text-slate-400 mt-2">
+        Upload a CSV file containing sample names and DNA sequences.
+      </p>
+    </div>
+
+
+    {/* File Upload */}
+    <div className="rounded-2xl border border-dashed border-green-500/30 bg-green-500/5 p-8 text-center">
+
+      <div className="text-4xl mb-4">
+        📂
+      </div>
+
+      <h3 className="text-lg font-semibold mb-2">
+        Upload your CSV file
+      </h3>
+
+      <p className="text-sm text-slate-500 mb-5">
+        CSV files containing sample names and sequences
+      </p>
+
+      <input
+        type="file"
+        accept=".csv"
+        onChange={handleCSVUpload}
+        className="block mx-auto text-sm text-slate-400
+                   file:mr-4 file:py-2 file:px-4
+                   file:rounded-xl file:border-0
+                   file:bg-green-500 file:text-slate-950
+                   file:font-semibold
+                   hover:file:bg-green-400
+                   cursor-pointer"
+      />
+
+    </div>
+
+    {csvData.length > 0 && (
+  <button
+    onClick={analyzeCSV}
+    disabled={csvAnalyzing}
+    className="mt-5 px-7 py-3 rounded-xl bg-green-500 text-slate-950 font-semibold hover:bg-green-400 transition disabled:bg-slate-700 disabled:text-slate-500"
+  >
+    {csvAnalyzing ? "Analyzing CSV..." : "Analyze CSV →"}
+  </button>
+)}
+
+    {/* Uploaded File Name */}
+    {csvFileName && (
+      <div className="mt-5 rounded-xl border border-green-500/20 bg-green-500/10 p-4">
+        <p className="text-sm text-green-400">
+          ✓ Uploaded file:{" "}
+          <strong>{csvFileName}</strong>
+        </p>
+      </div>
+    )}
+
+
+    {/* CSV Data */}
+    {csvData.length > 0 && (
+      <div className="mt-8">
+
+        <h3 className="text-xl font-semibold mb-4">
+          CSV Data
+        </h3>
+
+        <div className="overflow-x-auto rounded-2xl border border-white/10">
+
+          <table className="w-full text-left">
+
+            <thead className="bg-slate-900">
+              <tr>
+
+                {Object.keys(csvData[0]).map((column) => (
+                  <th
+                    key={column}
+                    className="px-5 py-4 text-sm font-semibold text-green-400 border-b border-white/10"
+                  >
+                    {column}
+                  </th>
+                ))}
+
+              </tr>
+            </thead>
+
+            <tbody>
+
+              {csvData.map((row, rowIndex) => (
+
+                <tr
+                  key={rowIndex}
+                  className="border-b border-white/5 hover:bg-white/[0.03]"
+                >
+
+                  {Object.keys(csvData[0]).map((column) => (
+
+                    <td
+                      key={column}
+                      className="px-5 py-4 text-sm text-slate-300 font-mono"
+                    >
+                      {row[column]}
+                    </td>
+
+                  ))}
+
+                </tr>
+
+              ))}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+    )}
+
+
+    {/* Analyze CSV Button */}
+    {csvData.length > 0 && (
+      <div className="mt-6">
+
+        <button
+          onClick={analyzeCSV}
+          disabled={csvAnalyzing}
+          className="px-7 py-3 rounded-xl bg-green-500 text-slate-950 font-semibold hover:bg-green-400 transition disabled:bg-slate-700 disabled:text-slate-500"
+        >
+          {csvAnalyzing
+            ? "Analyzing CSV..."
+            : "Analyze CSV →"}
+        </button>
+
+      </div>
+    )}
+
+
+    {/* Batch Analysis Results */}
+    {csvResults.length > 0 && (
+      <div className="mt-10">
+
+        <h3 className="text-xl font-semibold mb-4">
+          Batch Analysis Results
+        </h3>
+
+        <div className="overflow-x-auto rounded-2xl border border-white/10">
+
+          <table className="w-full text-left">
+
+            <thead className="bg-slate-900">
+
+              <tr>
+
+                <th className="px-5 py-4 text-sm font-semibold text-green-400">
+                  Sample
+                </th>
+
+                <th className="px-5 py-4 text-sm font-semibold text-green-400">
+                  Length
+                </th>
+
+                <th className="px-5 py-4 text-sm font-semibold text-green-400">
+                  A
+                </th>
+
+                <th className="px-5 py-4 text-sm font-semibold text-green-400">
+                  T
+                </th>
+
+                <th className="px-5 py-4 text-sm font-semibold text-green-400">
+                  G
+                </th>
+
+                <th className="px-5 py-4 text-sm font-semibold text-green-400">
+                  C
+                </th>
+
+                <th className="px-5 py-4 text-sm font-semibold text-green-400">
+                  GC %
+                </th>
+
+                <th className="px-5 py-4 text-sm font-semibold text-green-400">
+                  AT %
+                </th>
+
+                <th className="px-5 py-4 text-sm font-semibold text-green-400">
+                  Status
+                </th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              {csvResults.map((row, index) => (
+
+                <tr
+                  key={index}
+                  className="border-b border-white/5 hover:bg-white/[0.03]"
+                >
+
+                  <td className="px-5 py-4 text-sm font-medium text-white">
+                    {row.sample_name}
+                  </td>
+
+                  <td className="px-5 py-4 text-sm text-slate-300">
+                    {row.length ?? "-"}
+                  </td>
+
+                  <td className="px-5 py-4 text-sm text-slate-300">
+                    {row.A ?? "-"}
+                  </td>
+
+                  <td className="px-5 py-4 text-sm text-slate-300">
+                    {row.T ?? "-"}
+                  </td>
+
+                  <td className="px-5 py-4 text-sm text-slate-300">
+                    {row.G ?? "-"}
+                  </td>
+
+                  <td className="px-5 py-4 text-sm text-slate-300">
+                    {row.C ?? "-"}
+                  </td>
+
+                  <td className="px-5 py-4 text-sm text-green-400">
+                    {row.GC ?? "-"}%
+                  </td>
+
+                  <td className="px-5 py-4 text-sm text-cyan-400">
+                    {row.AT ?? "-"}%
+                  </td>
+
+                  <td className="px-5 py-4 text-sm">
+
+                    {row.error ? (
+                      <span className="text-red-400">
+                        Error
+                      </span>
+                    ) : (
+                      <span className="text-green-400">
+                        ✓ Complete
+                      </span>
+                    )}
+
+                  </td>
+
+                </tr>
+
+              ))}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+    )}
+
+  </div>
+
+</section>
+
+
+    {csvFileName && (
+      <div className="mt-5 rounded-xl border border-green-500/20 bg-green-500/10 p-4">
+        <p className="text-sm text-green-400">
+          ✓ Uploaded file:{" "}
+          <strong>{csvFileName}</strong>
+        </p>
+      </div>
+    )}
+
+    {csvData.length > 0 && (
+      <div className="mt-8">
+
+        <h3 className="text-xl font-semibold mb-4">
+          CSV Data
+        </h3>
+
+        <div className="overflow-x-auto rounded-2xl border border-white/10">
+
+          <table className="w-full text-left">
+
+            <thead className="bg-slate-900">
+
+              <tr>
+                {Object.keys(csvData[0]).map((column) => (
+                  <th
+                    key={column}
+                    className="px-5 py-4 text-sm font-semibold text-green-400 border-b border-white/10"
+                  >
+                    {column}
+                  </th>
+                ))}
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              {csvData.map((row, rowIndex) => (
+
+                <tr
+                  key={rowIndex}
+                  className="border-b border-white/5 hover:bg-white/[0.03]"
+                >
+
+                  {Object.keys(csvData[0]).map((column) => (
+
+                    <td
+                      key={column}
+                      className="px-5 py-4 text-sm text-slate-300 font-mono"
+                    >
+                      {row[column]}
+                    </td>
+
+                  ))}
+
+                </tr>
+
+              ))}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+    )}
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-white/10">
