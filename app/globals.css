@@ -24,3 +24,39 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+.csv-section {
+  margin-top: 40px;
+  padding: 25px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+}
+
+.csv-section h2 {
+  margin-bottom: 10px;
+}
+
+.csv-table-container {
+  margin-top: 25px;
+  overflow-x: auto;
+}
+
+.csv-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+.csv-table th,
+.csv-table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: left;
+}
+
+.csv-table th {
+  font-weight: bold;
+}
+
+.csv-table td {
+  word-break: break-word;
+}
