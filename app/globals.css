@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* =====================================================
+   GLOBAL VARIABLES
+   ===================================================== */
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -8,27 +12,42 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+
+/* =====================================================
+   BODY
+   ===================================================== */
 
 body {
+  margin: 0;
+  padding: 0;
+
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
 }
+
+
+/* =====================================================
+   CSV SECTION
+   ===================================================== */
+
 .csv-section {
   margin-top: 40px;
   padding: 25px;
-  border: 1px solid #ddd;
-  border-radius: 12px;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+
+  background: #ffffff;
 }
 
 .csv-section h2 {
@@ -38,25 +57,474 @@ body {
 .csv-table-container {
   margin-top: 25px;
   overflow-x: auto;
+
+  border-radius: 12px;
 }
 
 .csv-table {
   width: 100%;
+
   border-collapse: collapse;
+
   margin-top: 15px;
 }
 
 .csv-table th,
 .csv-table td {
-  border: 1px solid #ddd;
+  border: 1px solid #e2e8f0;
+
   padding: 10px;
+
   text-align: left;
 }
 
 .csv-table th {
-  font-weight: bold;
+  font-weight: 700;
+
+  background: #f8fafc;
 }
 
 .csv-table td {
   word-break: break-word;
 }
+
+
+/* =====================================================
+   DNA HERO CONTAINER
+   ===================================================== */
+
+.dna-container {
+  width: 420px;
+  height: 500px;
+
+  position: relative;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  perspective: 1000px;
+}
+
+
+/* =====================================================
+   DNA GLOW
+   ===================================================== */
+
+.dna-glow {
+  position: absolute;
+
+  width: 300px;
+  height: 420px;
+
+  border-radius: 50%;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(37, 99, 235, 0.22),
+      rgba(124, 58, 237, 0.22)
+    );
+
+  filter: blur(55px);
+
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+
+/* =====================================================
+   DNA HELIX
+   ===================================================== */
+
+.dna {
+  width: 260px;
+  height: 430px;
+
+  position: relative;
+
+  transform-style: preserve-3d;
+
+  animation:
+    dna-float 5s ease-in-out infinite;
+}
+
+
+/* =====================================================
+   DNA STRANDS
+   ===================================================== */
+
+.dna-strand {
+  position: absolute;
+
+  top: 0;
+
+  width: 20px;
+  height: 100%;
+
+  border-radius: 999px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #2563eb,
+      #6366f1,
+      #7c3aed,
+      #2563eb
+    );
+
+  box-shadow:
+    0 0 15px rgba(37, 99, 235, 0.45),
+    0 0 30px rgba(124, 58, 237, 0.25);
+}
+
+
+/* =====================================================
+   LEFT DNA STRAND
+   ===================================================== */
+
+.dna-strand-left {
+  left: 30px;
+
+  transform: rotate(8deg);
+}
+
+
+/* =====================================================
+   RIGHT DNA STRAND
+   ===================================================== */
+
+.dna-strand-right {
+  right: 30px;
+
+  transform: rotate(-8deg);
+}
+
+
+/* =====================================================
+   DNA BASE PAIRS
+   ===================================================== */
+
+.dna-base {
+  position: absolute;
+
+  left: 40px;
+  right: 40px;
+
+  height: 8px;
+
+  border-radius: 999px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #60a5fa,
+      #c4b5fd,
+      #8b5cf6
+    );
+
+  box-shadow:
+    0 0 10px rgba(99, 102, 241, 0.35);
+
+  transform-origin: center;
+}
+
+
+/* =====================================================
+   BASE PAIR POSITIONS
+   ===================================================== */
+
+.dna-base:nth-child(3) {
+  top: 30px;
+  transform: rotate(10deg);
+}
+
+.dna-base:nth-child(4) {
+  top: 75px;
+  transform: rotate(-8deg);
+}
+
+.dna-base:nth-child(5) {
+  top: 120px;
+  transform: rotate(7deg);
+}
+
+.dna-base:nth-child(6) {
+  top: 165px;
+  transform: rotate(-10deg);
+}
+
+.dna-base:nth-child(7) {
+  top: 210px;
+  transform: rotate(8deg);
+}
+
+.dna-base:nth-child(8) {
+  top: 255px;
+  transform: rotate(-7deg);
+}
+
+.dna-base:nth-child(9) {
+  top: 300px;
+  transform: rotate(10deg);
+}
+
+.dna-base:nth-child(10) {
+  top: 345px;
+  transform: rotate(-8deg);
+}
+
+.dna-base:nth-child(11) {
+  top: 390px;
+  transform: rotate(7deg);
+}
+
+
+/* =====================================================
+   DNA LABELS
+   ===================================================== */
+
+.dna-label {
+  position: absolute;
+
+  padding: 9px 14px;
+
+  background:
+    rgba(255, 255, 255, 0.92);
+
+  backdrop-filter: blur(10px);
+
+  border:
+    1px solid
+    rgba(99, 102, 241, 0.18);
+
+  border-radius: 12px;
+
+  font-size: 16px;
+
+  font-weight: 800;
+
+  box-shadow:
+    0 8px 25px
+    rgba(15, 23, 42, 0.12);
+
+  z-index: 10;
+
+  animation:
+    label-float 4s ease-in-out infinite;
+}
+
+
+/* =====================================================
+   A LABEL
+   ===================================================== */
+
+.dna-label-a {
+  top: 70px;
+  left: 5px;
+
+  color: #2563eb;
+}
+
+
+/* =====================================================
+   T LABEL
+   ===================================================== */
+
+.dna-label-t {
+  top: 140px;
+  right: 5px;
+
+  color: #7c3aed;
+
+  animation-delay: 0.5s;
+}
+
+
+/* =====================================================
+   G LABEL
+   ===================================================== */
+
+.dna-label-g {
+  top: 270px;
+  left: 10px;
+
+  color: #2563eb;
+
+  animation-delay: 1s;
+}
+
+
+/* =====================================================
+   C LABEL
+   ===================================================== */
+
+.dna-label-c {
+  top: 350px;
+  right: 10px;
+
+  color: #7c3aed;
+
+  animation-delay: 1.5s;
+}
+
+
+/* =====================================================
+   DNA FLOAT ANIMATION
+   ===================================================== */
+
+@keyframes dna-float {
+
+  0% {
+    transform:
+      translateY(0px)
+      rotateY(-8deg)
+      rotateX(2deg);
+  }
+
+  50% {
+    transform:
+      translateY(-15px)
+      rotateY(8deg)
+      rotateX(-2deg);
+  }
+
+  100% {
+    transform:
+      translateY(0px)
+      rotateY(-8deg)
+      rotateX(2deg);
+  }
+
+}
+
+
+/* =====================================================
+   DNA GLOW ANIMATION
+   ===================================================== */
+
+@keyframes glow-pulse {
+
+  0% {
+    opacity: 0.65;
+    transform: scale(0.95);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+
+  100% {
+    opacity: 0.65;
+    transform: scale(0.95);
+  }
+
+}
+
+
+/* =====================================================
+   LABEL FLOAT ANIMATION
+   ===================================================== */
+
+@keyframes label-float {
+
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+
+}
+
+
+/* =====================================================
+   CSV TABLE SCROLLBAR
+   ===================================================== */
+
+.csv-table-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.csv-table-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+
+  border-radius: 10px;
+}
+
+.csv-table-container::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+
+  border-radius: 10px;
+}
+
+
+/* =====================================================
+   GENERAL SCROLLBAR
+   ===================================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+
+/* =====================================================
+   MOBILE DNA
+   ===================================================== */
+
+@media (max-width: 768px) {
+
+  .dna-container {
+    width: 320px;
+    height: 400px;
+
+    transform: scale(0.85);
+  }
+
+  .dna {
+    width: 230px;
+    height: 370px;
+  }
+
+  .dna-glow {
+    width: 240px;
+    height: 330px;
+  }
+
+}
+
+
+/* =====================================================
+   SMALL MOBILE
+   ===================================================== */
+
+@media (max-width: 480px) {
+
+  .dna-container {
+    width: 280px;
+    height: 360px;
+
+    transform: scale(0.75);
+  }
+
+}
+

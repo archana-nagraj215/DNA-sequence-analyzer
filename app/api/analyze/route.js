@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-// Complete RNA codon table
+// =====================================================
+// RNA CODON TABLE
+// =====================================================
+
 const codon_table = {
   AUG: "Methionine",
 
@@ -86,20 +89,82 @@ const codon_table = {
 };
 
 
+// =====================================================
+// CALCULATE 3-MER FREQUENCY
+// =====================================================
+
+function calculate3MerFrequency(sequence) {
+  const kmerCounts = {};
+
+  // A 3-mer needs at least 3 bases
+  if (sequence.length < 3) {
+    return kmerCounts;
+  }
+
+  for (
+    let i = 0;
+    i <= sequence.length - 3;
+    i++
+  ) {
+    const kmer =
+      sequence.substring(i, i + 3);
+
+    if (kmerCounts[kmer]) {
+      kmerCounts[kmer]++;
+    } else {
+      kmerCounts[kmer] = 1;
+    }
+  }
+
+  return kmerCounts;
+}
+
+
+// =====================================================
+// ANALYZE DNA
+// =====================================================
+
 function analyzeDNA(sequence) {
 
-  // Clean sequence
-  sequence = sequence
-    .toUpperCase()
-    .replace(/ /g, "")
-    .replace(/\n/g, "");
+  // -----------------------------------------------------
+  // Check sequence type
+  // -----------------------------------------------------
 
-  // Validation
-  if (!sequence) {
+  if (
+    typeof sequence !== "string"
+  ) {
     return {
-      error: "Please enter a DNA sequence.",
+      error:
+        "DNA sequence must be a string.",
     };
   }
+
+
+  // -----------------------------------------------------
+  // Clean sequence
+  // -----------------------------------------------------
+
+  sequence = sequence
+    .toUpperCase()
+    .replace(/\s/g, "")
+    .trim();
+
+
+  // -----------------------------------------------------
+  // Empty sequence
+  // -----------------------------------------------------
+
+  if (!sequence) {
+    return {
+      error:
+        "Please enter a DNA sequence.",
+    };
+  }
+
+
+  // -----------------------------------------------------
+  // Validate DNA
+  // -----------------------------------------------------
 
   if (!/^[ATGC]+$/.test(sequence)) {
     return {
@@ -108,20 +173,66 @@ function analyzeDNA(sequence) {
     };
   }
 
-  // Base counting
-  const A = (sequence.match(/A/g) || []).length;
-  const T = (sequence.match(/T/g) || []).length;
-  const G = (sequence.match(/G/g) || []).length;
-  const C = (sequence.match(/C/g) || []).length;
 
-  // Sequence length
-  const length = sequence.length;
+  // =====================================================
+  // BASE COUNTS
+  // =====================================================
 
-  // GC and AT content
-  const GC = Number((((G + C) / length) * 100).toFixed(2));
-  const AT = Number((((A + T) / length) * 100).toFixed(2));
+  const num_A =
+    (sequence.match(/A/g) || [])
+      .length;
 
-  // Reverse complement
+  const num_T =
+    (sequence.match(/T/g) || [])
+      .length;
+
+  const num_G =
+    (sequence.match(/G/g) || [])
+      .length;
+
+  const num_C =
+    (sequence.match(/C/g) || [])
+      .length;
+
+
+  // =====================================================
+  // SEQUENCE LENGTH
+  // =====================================================
+
+  const length =
+    sequence.length;
+
+
+  // =====================================================
+  // GC CONTENT
+  // =====================================================
+
+  const GC = Number(
+    (
+      ((num_G + num_C) /
+        length) *
+      100
+    ).toFixed(2)
+  );
+
+
+  // =====================================================
+  // AT CONTENT
+  // =====================================================
+
+  const AT = Number(
+    (
+      ((num_A + num_T) /
+        length) *
+      100
+    ).toFixed(2)
+  );
+
+
+  // =====================================================
+  // REVERSE COMPLEMENT
+  // =====================================================
+
   const complement = {
     A: "T",
     T: "A",
@@ -129,61 +240,208 @@ function analyzeDNA(sequence) {
     C: "G",
   };
 
-  const reverseComplement = sequence
-    .split("")
-    .reverse()
-    .map((base) => complement[base])
-    .join("");
+  const reverseComplement =
+    sequence
+      .split("")
+      .reverse()
+      .map(
+        (base) =>
+          complement[base]
+      )
+      .join("");
 
+
+  // =====================================================
   // DNA → RNA
-  const RNA = sequence.replace(/T/g, "U");
+  // =====================================================
 
-  // RNA → Protein
+  const RNA =
+    sequence.replace(
+      /T/g,
+      "U"
+    );
+
+
+  // =====================================================
+  // RNA → PROTEIN
+  // =====================================================
+
   const protein = [];
 
-  for (let i = 0; i < RNA.length - 2; i += 3) {
-    const codon = RNA.substring(i, i + 3);
+  for (
+    let i = 0;
+    i <= RNA.length - 3;
+    i += 3
+  ) {
 
-    const aminoAcid = codon_table[codon] || "Unknown";
+    const codon =
+      RNA.substring(
+        i,
+        i + 3
+      );
 
-    protein.push(aminoAcid);
+    const aminoAcid =
+      codon_table[codon] ||
+      "Unknown";
+
+    protein.push(
+      aminoAcid
+    );
+
   }
 
-  const proteinSequence = protein.join(" ");
+  const proteinSequence =
+    protein.join(" ");
+
+
+  // =====================================================
+  // 3-MER FREQUENCY
+  // =====================================================
+
+  const kmer_3_freq =
+    calculate3MerFrequency(
+      sequence
+    );
+
+
+  // =====================================================
+  // RETURN ALL RESULTS
+  // =====================================================
 
   return {
+
+    // Original sequence
     sequence: sequence,
+
+    // Sequence length
     length: length,
-    A: A,
-    T: T,
-    G: G,
-    C: C,
+
+    // Base counts
+    A: num_A,
+    T: num_T,
+    G: num_G,
+    C: num_C,
+
+    // Explicit names for CSV
+    num_A: num_A,
+    num_T: num_T,
+    num_G: num_G,
+    num_C: num_C,
+
+    // Composition
     GC: GC,
     AT: AT,
-    reverseComplement: reverseComplement,
+
+    // Explicit names
+    gc_content: GC,
+    at_content: AT,
+
+    // Sequence transformations
+    reverseComplement:
+      reverseComplement,
+
     RNA: RNA,
-    protein: proteinSequence,
+
+    protein:
+      proteinSequence,
+
+    // K-mer
+    kmer_3_freq:
+      kmer_3_freq,
   };
 }
 
 
-export async function POST(request) {
+// =====================================================
+// POST API
+// =====================================================
+
+export async function POST(
+  request
+) {
 
   try {
 
-    const body = await request.json();
+    // ---------------------------------------------------
+    // Read request
+    // ---------------------------------------------------
 
-    const sequence = body.sequence;
+    const body =
+      await request.json();
 
-    const result = analyzeDNA(sequence);
 
-    return NextResponse.json(result);
+    // ---------------------------------------------------
+    // Get DNA sequence
+    // ---------------------------------------------------
+
+    const sequence =
+      body?.sequence;
+
+
+    // ---------------------------------------------------
+    // Check sequence
+    // ---------------------------------------------------
+
+    if (
+      sequence === undefined ||
+      sequence === null
+    ) {
+
+      return NextResponse.json(
+        {
+          error:
+            "No DNA sequence was provided.",
+        },
+        {
+          status: 400,
+        }
+      );
+
+    }
+
+
+    // ---------------------------------------------------
+    // Analyze DNA
+    // ---------------------------------------------------
+
+    const result =
+      analyzeDNA(sequence);
+
+
+    // ---------------------------------------------------
+    // Return result
+    // ---------------------------------------------------
+
+    if (result.error) {
+
+      return NextResponse.json(
+        result,
+        {
+          status: 400,
+        }
+      );
+
+    }
+
+
+    return NextResponse.json(
+      result,
+      {
+        status: 200,
+      }
+    );
 
   } catch (error) {
 
+    console.error(
+      "DNA analysis error:",
+      error
+    );
+
     return NextResponse.json(
       {
-        error: "Something went wrong while analyzing the DNA sequence.",
+        error:
+          "Something went wrong while analyzing the DNA sequence.",
       },
       {
         status: 500,
@@ -191,4 +449,6 @@ export async function POST(request) {
     );
 
   }
+
 }
+
