@@ -116,14 +116,14 @@ function calculate3MerFrequency(sequence) {
 // =====================================================
 
 function analyzeDNA(sequence) {
+
   // ---------------------------------------------------
   // Check type
   // ---------------------------------------------------
 
   if (typeof sequence !== "string") {
     return {
-      error:
-        "DNA sequence must be a string.",
+      error: "DNA sequence must be a string.",
     };
   }
 
@@ -142,8 +142,7 @@ function analyzeDNA(sequence) {
 
   if (!sequence) {
     return {
-      error:
-        "Please enter a DNA sequence.",
+      error: "Please enter a DNA sequence.",
     };
   }
 
@@ -175,7 +174,7 @@ function analyzeDNA(sequence) {
     (sequence.match(/C/g) || []).length;
 
   // =====================================================
-  // LENGTH
+  // SEQUENCE LENGTH
   // =====================================================
 
   const length = sequence.length;
@@ -231,7 +230,11 @@ function analyzeDNA(sequence) {
 
   const protein = [];
 
-  for (let i = 0; i <= RNA.length - 3; i += 3) {
+  for (
+    let i = 0;
+    i <= RNA.length - 3;
+    i += 3
+  ) {
     const codon = RNA.substring(i, i + 3);
 
     const aminoAcid =
@@ -251,12 +254,13 @@ function analyzeDNA(sequence) {
     calculate3MerFrequency(sequence);
 
   // =====================================================
-  // RETURN RESULTS
+  // RETURN RESULT
   // =====================================================
 
   return {
     sequence,
 
+    // Sequence length
     length,
 
     // Base counts
@@ -265,7 +269,7 @@ function analyzeDNA(sequence) {
     G: num_G,
     C: num_C,
 
-    // Explicit CSV names
+    // Explicit names for CSV analysis
     num_A,
     num_T,
     num_G,
@@ -275,6 +279,7 @@ function analyzeDNA(sequence) {
     GC,
     AT,
 
+    // Explicit CSV-friendly names
     gc_content: GC,
     at_content: AT,
 
@@ -285,7 +290,7 @@ function analyzeDNA(sequence) {
 
     protein: proteinSequence,
 
-    // K-mer
+    // K-mer frequency
     kmer_3_freq,
   };
 }
@@ -296,17 +301,94 @@ function analyzeDNA(sequence) {
 
 export async function POST(request) {
   try {
+
     // ---------------------------------------------------
     // Read request body
     // ---------------------------------------------------
 
     const body = await request.json();
 
-    // ---------------------------------------------------
-    // Get sequence
-    // ---------------------------------------------------
+    // ===================================================
+    // CSV ANALYSIS
+    // ===================================================
 
-    const sequence = body?.sequence;
+    /*
+      Expected format:
+
+      {
+        "samples": [
+          {
+            "sample_name": "Sample_01",
+            "sequence": "ATGCGTAGCTAG"
+          },
+          {
+            "sample_name": "Sample_02",
+            "sequence": "GGCTTAACCGGT"
+          }
+        ]
+      }
+    */
+
+    if (Array.isArray(body?.samples)) {
+
+      const results = body.samples.map(
+        (row, index) => {
+
+          // ---------------------------------------------
+          // Get sample name
+          // ---------------------------------------------
+
+          const sample_name =
+            row?.sample_name ||
+            `Sample_${index + 1}`;
+
+          // ---------------------------------------------
+          // Get sequence
+          // ---------------------------------------------
+
+          const sequence =
+            row?.sequence;
+
+          // ---------------------------------------------
+          // Analyze sequence
+          // ---------------------------------------------
+
+          const result =
+            analyzeDNA(sequence);
+
+          // ---------------------------------------------
+          // Return sample name + analysis
+          // ---------------------------------------------
+
+          return {
+            sample_name,
+            ...result,
+          };
+        }
+      );
+
+      // -----------------------------------------------
+      // Return all CSV results
+      // -----------------------------------------------
+
+      return NextResponse.json(
+        {
+          success: true,
+          total_samples: results.length,
+          results,
+        },
+        {
+          status: 200,
+        }
+      );
+    }
+
+    // ===================================================
+    // SINGLE DNA SEQUENCE ANALYSIS
+    // ===================================================
+
+    const sequence =
+      body?.sequence;
 
     // ---------------------------------------------------
     // Check sequence
@@ -328,7 +410,7 @@ export async function POST(request) {
     }
 
     // ---------------------------------------------------
-    // Analyze
+    // Analyze single sequence
     // ---------------------------------------------------
 
     const result =
@@ -357,7 +439,9 @@ export async function POST(request) {
         status: 200,
       }
     );
+
   } catch (error) {
+
     console.error(
       "DNA analysis error:",
       error
@@ -365,6 +449,7 @@ export async function POST(request) {
 
     return NextResponse.json(
       {
+        success: false,
         error:
           "Something went wrong while analyzing the DNA sequence.",
       },
