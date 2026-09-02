@@ -33,12 +33,8 @@ type DNAResult = {
 };
 
 type CSVRow = {
-  sampleID?: string;
-  sample_id?: string;
-  sample_name?: string;
-  sequence?: string;
-
-  [key: string]: string | undefined;
+  sampleID: string;
+  sequence: string;
 };
 
 type CSVResult = {
@@ -66,26 +62,17 @@ export default function Home() {
   // =====================================================
 
   const [sequence, setSequence] = useState("");
-  const [result, setResult] =
-    useState<DNAResult | null>(null);
-
+  const [result, setResult] = useState<DNAResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   // =====================================================
   // CSV
   // =====================================================
 
-  const [csvData, setCsvData] =
-    useState<CSVRow[]>([]);
-
-  const [csvFileName, setCsvFileName] =
-    useState("");
-
-  const [csvResults, setCsvResults] =
-    useState<CSVResult[]>([]);
-
-  const [csvAnalyzing, setCsvAnalyzing] =
-    useState(false);
+  const [csvData, setCsvData] = useState<CSVRow[]>([]);
+  const [csvFileName, setCsvFileName] = useState("");
+  const [csvResults, setCsvResults] = useState<CSVResult[]>([]);
+  const [csvAnalyzing, setCsvAnalyzing] = useState(false);
 
   // =====================================================
   // SINGLE DNA ANALYSIS
@@ -94,10 +81,8 @@ export default function Home() {
   async function analyzeDNA() {
     if (!sequence.trim()) {
       setResult({
-        error:
-          "Please enter a DNA sequence first.",
+        error: "Please enter a DNA sequence first.",
       });
-
       return;
     }
 
@@ -105,32 +90,34 @@ export default function Home() {
     setResult(null);
 
     try {
-      const response = await fetch(
-        "/api/analyze",
-        {
-          method: "POST",
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sequence,
+        }),
+      });
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
+      const data: DNAResult = await response.json();
 
-          body: JSON.stringify({
-            sequence: sequence,
-          }),
-        }
-      );
-
-      const data: DNAResult =
-        await response.json();
+      if (!response.ok) {
+        setResult({
+          error:
+            data.error ||
+            `Analysis failed with status ${response.status}.`,
+        });
+        return;
+      }
 
       setResult(data);
     } catch (error) {
-      console.error(error);
+      console.error("DNA analysis error:", error);
 
       setResult({
         error:
-          "Unable to analyze the sequence. Please check your API.",
+          "Unable to connect to the DNA analysis API.",
       });
     } finally {
       setLoading(false);
@@ -153,8 +140,7 @@ export default function Home() {
   function handleCSVUpload(
     event: React.ChangeEvent<HTMLInputElement>
   ) {
-    const file =
-      event.target.files?.[0];
+    const file = event.target.files?.[0];
 
     if (!file) {
       return;
@@ -164,13 +150,12 @@ export default function Home() {
     setCsvData([]);
     setCsvResults([]);
 
-    Papa.parse<CSVRow>(file, {
+    Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
 
-      transformHeader: (
-        header: string
-      ) => header.trim(),
+      transformHeader: (header: string) =>
+        header.trim(),
 
       complete: (results) => {
         console.log(
@@ -178,108 +163,93 @@ export default function Home() {
           results.data
         );
 
-        // ---------------------------------------------
-        // Check whether sequence column exists
-        // ---------------------------------------------
-
-        const firstRow =
-          results.data[0];
-
-        if (!firstRow) {
-          alert(
-            "The CSV file is empty."
-          );
-
+        if (!results.data.length) {
+          alert("The CSV file is empty.");
           return;
         }
 
-        const hasSequenceColumn =
-          Object.keys(firstRow).some(
-            (key) =>
-              key.toLowerCase() ===
-              "sequence"
-          );
+        // ---------------------------------------------
+        // Find sequence column
+        // ---------------------------------------------
 
-        if (!hasSequenceColumn) {
+        const firstRow = results.data[0];
+
+        const sequenceKey = Object.keys(
+          firstRow
+        ).find(
+          (key) =>
+            key.trim().toLowerCase() ===
+            "sequence"
+        );
+
+        if (!sequenceKey) {
           alert(
             "The CSV must contain a column named 'sequence'."
           );
-
           return;
         }
 
         // ---------------------------------------------
-        // Normalize rows
+        // Find optional sample ID column
         // ---------------------------------------------
 
-        const normalizedRows =
-          results.data.map(
-            (row, index) => {
-              const sequenceKey =
-                Object.keys(row).find(
-                  (key) =>
-                    key.toLowerCase() ===
-                    "sequence"
-                );
+        const sampleKey = Object.keys(
+          firstRow
+        ).find((key) => {
+          const normalized =
+            key.trim().toLowerCase();
 
-              const sampleKey =
-                Object.keys(row).find(
-                  (key) =>
-                    key.toLowerCase() ===
-                      "sampleid" ||
-                    key.toLowerCase() ===
-                      "sample_id" ||
-                    key.toLowerCase() ===
-                      "sample_name"
-                );
+          return (
+            normalized === "sampleid" ||
+            normalized === "sample_id" ||
+            normalized === "sample_name"
+          );
+        });
 
-              const dna =
-                sequenceKey
-                  ? String(
-                      row[sequenceKey] ||
-                        ""
-                    ).trim()
-                  : "";
+        // ---------------------------------------------
+        // Normalize CSV rows
+        // ---------------------------------------------
 
-              const sample =
-                sampleKey
-                  ? String(
-                      row[sampleKey] ||
-                        ""
-                    ).trim()
-                  : "";
+        const normalizedRows: CSVRow[] =
+          results.data
+            .map((row, index) => {
+              const dna = String(
+                row[sequenceKey] || ""
+              )
+                .toUpperCase()
+                .replace(/\s/g, "")
+                .trim();
+
+              const sample = sampleKey
+                ? String(
+                    row[sampleKey] || ""
+                  ).trim()
+                : "";
 
               return {
                 sampleID:
                   sample ||
                   `Sample${index + 1}`,
-
                 sequence: dna,
               };
-            }
-          );
+            })
+            .filter(
+              (row) =>
+                row.sequence.length > 0
+            );
 
         // ---------------------------------------------
-        // Remove empty rows
+        // Validate rows
         // ---------------------------------------------
 
-        const validRows =
-          normalizedRows.filter(
-            (row) =>
-              row.sequence.length > 0
-          );
-
-        if (
-          validRows.length === 0
-        ) {
+        if (!normalizedRows.length) {
           alert(
             "No DNA sequences were found in the CSV."
           );
-
           return;
         }
 
-        setCsvData(validRows);
+        setCsvData(normalizedRows);
       },
 
       error: (error) => {
@@ -293,6 +263,9 @@ export default function Home() {
         );
       },
     });
+
+    // Allow selecting the same file again
+    event.target.value = "";
   }
 
   // =====================================================
@@ -301,10 +274,7 @@ export default function Home() {
 
   async function analyzeCSV() {
     if (csvData.length === 0) {
-      alert(
-        "Please upload a CSV file first."
-      );
-
+      alert("Please upload a CSV file first.");
       return;
     }
 
@@ -313,80 +283,28 @@ export default function Home() {
 
     const results: CSVResult[] = [];
 
-    for (
-      let i = 0;
-      i < csvData.length;
-      i++
-    ) {
-      const row = csvData[i];
+    try {
+      for (let i = 0; i < csvData.length; i++) {
+        const row = csvData[i];
 
-      const sampleID =
-        row.sampleID ||
-        `Sample${i + 1}`;
+        const sampleID =
+          row.sampleID ||
+          `Sample${i + 1}`;
 
-      const dnaSequence =
-        row.sequence
-          ?.toUpperCase()
-          .replace(/\s/g, "")
-          .trim() || "";
-
-      // ---------------------------------------------
-      // Empty sequence
-      // ---------------------------------------------
-
-      if (!dnaSequence) {
-        results.push({
-          sampleID,
-          sequence: "",
-          GC: "—",
-          AT: "—",
-          length: "—",
-          num_A: "—",
-          num_T: "—",
-          num_C: "—",
-          num_G: "—",
-          kmer_3_frequency: {},
-          error:
-            "No DNA sequence found.",
-        });
-
-        continue;
-      }
-
-      try {
-        const response =
-          await fetch(
-            "/api/analyze",
-            {
-              method: "POST",
-
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body: JSON.stringify({
-                sequence:
-                  dnaSequence,
-              }),
-            }
-          );
-
-        const data: DNAResult =
-          await response.json();
+        const dnaSequence =
+          row.sequence
+            ?.toUpperCase()
+            .replace(/\s/g, "")
+            .trim() || "";
 
         // ---------------------------------------------
-        // API ERROR
+        // Empty sequence
         // ---------------------------------------------
 
-        if (
-          !response.ok ||
-          data.error
-        ) {
+        if (!dnaSequence) {
           results.push({
             sampleID,
-            sequence:
-              dnaSequence,
+            sequence: "",
             GC: "—",
             AT: "—",
             length: "—",
@@ -396,108 +314,162 @@ export default function Home() {
             num_G: "—",
             kmer_3_frequency: {},
             error:
-              data.error ||
-              "Unable to analyze sequence.",
+              "No DNA sequence found.",
           });
 
           continue;
         }
 
-        // ---------------------------------------------
-        // Get base counts
-        // ---------------------------------------------
+        try {
+          // -------------------------------------------
+          // Call SAME Vercel API
+          // -------------------------------------------
 
-        const num_A =
-          data.num_A ??
-          data.A ??
-          0;
+          const response = await fetch(
+            "/api/analyze",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                sequence: dnaSequence,
+              }),
+            }
+          );
 
-        const num_T =
-          data.num_T ??
-          data.T ??
-          0;
+          const data: DNAResult =
+            await response.json();
 
-        const num_C =
-          data.num_C ??
-          data.C ??
-          0;
+          // -------------------------------------------
+          // API error
+          // -------------------------------------------
 
-        const num_G =
-          data.num_G ??
-          data.G ??
-          0;
+          if (
+            !response.ok ||
+            data.error
+          ) {
+            results.push({
+              sampleID,
+              sequence: dnaSequence,
+              GC: "—",
+              AT: "—",
+              length: "—",
+              num_A: "—",
+              num_T: "—",
+              num_C: "—",
+              num_G: "—",
+              kmer_3_frequency: {},
+              error:
+                data.error ||
+                "Unable to analyze sequence.",
+            });
 
-        // ---------------------------------------------
-        // Get GC / AT
-        // ---------------------------------------------
+            continue;
+          }
 
-        const GC =
-          data.gc_content ??
-          data.GC ??
-          0;
+          // -------------------------------------------
+          // Base counts
+          // -------------------------------------------
 
-        const AT =
-          data.at_content ??
-          data.AT ??
-          0;
+          const num_A =
+            data.num_A ??
+            data.A ??
+            0;
 
-        // ---------------------------------------------
-        // Store CSV result
-        // ---------------------------------------------
+          const num_T =
+            data.num_T ??
+            data.T ??
+            0;
 
-        results.push({
-          sampleID,
+          const num_C =
+            data.num_C ??
+            data.C ??
+            0;
 
-          sequence:
-            data.sequence ||
-            dnaSequence,
+          const num_G =
+            data.num_G ??
+            data.G ??
+            0;
 
-          GC,
+          // -------------------------------------------
+          // GC / AT
+          // -------------------------------------------
 
-          AT,
+          const GC =
+            data.gc_content ??
+            data.GC ??
+            0;
 
-          length:
-            data.length ??
-            dnaSequence.length,
+          const AT =
+            data.at_content ??
+            data.AT ??
+            0;
 
-          num_A,
+          // -------------------------------------------
+          // Store result
+          // -------------------------------------------
 
-          num_T,
+          results.push({
+            sampleID,
 
-          num_C,
+            sequence:
+              data.sequence ||
+              dnaSequence,
 
-          num_G,
+            GC,
+            AT,
 
-          kmer_3_frequency:
-            data.kmer_3_freq ||
-            {},
-        });
-      } catch (error) {
-        console.error(
-          `Error analyzing ${sampleID}:`,
-          error
-        );
+            length:
+              data.length ??
+              dnaSequence.length,
 
-        results.push({
-          sampleID,
-          sequence:
-            dnaSequence,
-          GC: "—",
-          AT: "—",
-          length: "—",
-          num_A: "—",
-          num_T: "—",
-          num_C: "—",
-          num_G: "—",
-          kmer_3_frequency: {},
-          error:
-            "Unable to analyze this sequence.",
-        });
+            num_A,
+            num_T,
+            num_C,
+            num_G,
+
+            kmer_3_frequency:
+              data.kmer_3_freq ||
+              {},
+          });
+        } catch (error) {
+          console.error(
+            `Error analyzing ${sampleID}:`,
+            error
+          );
+
+          results.push({
+            sampleID,
+            sequence: dnaSequence,
+            GC: "—",
+            AT: "—",
+            length: "—",
+            num_A: "—",
+            num_T: "—",
+            num_C: "—",
+            num_G: "—",
+            kmer_3_frequency: {},
+            error:
+              "Unable to analyze this sequence.",
+          });
+        }
       }
-    }
 
-    setCsvResults(results);
-    setCsvAnalyzing(false);
+      setCsvResults(results);
+    } catch (error) {
+      console.error(
+        "CSV Analysis Error:",
+        error
+      );
+
+      alert(
+        "Failed to analyze CSV."
+      );
+    } finally {
+      setCsvAnalyzing(false);
+    }
   }
 
   // =====================================================
@@ -529,9 +501,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+      {/* HEADER */}
 
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
 
@@ -597,9 +567,7 @@ export default function Home() {
 
       </header>
 
-      {/* =================================================
-          HERO
-      ================================================= */}
+      {/* HERO */}
 
       <section className="mx-auto max-w-7xl px-6 py-16">
 
@@ -622,13 +590,11 @@ export default function Home() {
             </h2>
 
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-
               Analyze nucleotide composition,
               GC and AT content, sequence
               length and k-mer frequencies
               using a simple bioinformatics
               workflow.
-
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
@@ -640,8 +606,7 @@ export default function Home() {
                       "analysis"
                     )
                     ?.scrollIntoView({
-                      behavior:
-                        "smooth",
+                      behavior: "smooth",
                     })
                 }
                 className="rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-7 py-4 font-semibold text-white shadow-lg transition hover:scale-105"
@@ -656,8 +621,7 @@ export default function Home() {
                       "batch"
                     )
                     ?.scrollIntoView({
-                      behavior:
-                        "smooth",
+                      behavior: "smooth",
                     })
                 }
                 className="rounded-2xl border border-slate-300 bg-white px-7 py-4 font-semibold text-slate-700 transition hover:bg-slate-50"
@@ -669,57 +633,57 @@ export default function Home() {
 
           </div>
 
+          {/* DNA ANIMATION */}
+
           <div className="flex justify-center">
 
-  <div className="dna-container">
+            <div className="dna-container">
 
-    <div className="dna-glow"></div>
+              <div className="dna-glow"></div>
 
-    <div className="dna">
+              <div className="dna">
 
-      <div className="dna-strand dna-strand-left"></div>
+                <div className="dna-strand dna-strand-left"></div>
 
-      <div className="dna-strand dna-strand-right"></div>
+                <div className="dna-strand dna-strand-right"></div>
 
-      <div className="dna-base"></div>
-      <div className="dna-base"></div>
-      <div className="dna-base"></div>
-      <div className="dna-base"></div>
-      <div className="dna-base"></div>
-      <div className="dna-base"></div>
-      <div className="dna-base"></div>
-      <div className="dna-base"></div>
-      <div className="dna-base"></div>
+                <div className="dna-base"></div>
+                <div className="dna-base"></div>
+                <div className="dna-base"></div>
+                <div className="dna-base"></div>
+                <div className="dna-base"></div>
+                <div className="dna-base"></div>
+                <div className="dna-base"></div>
+                <div className="dna-base"></div>
+                <div className="dna-base"></div>
 
-    </div>
+              </div>
 
-    <div className="dna-label dna-label-a">
-      A
-    </div>
+              <div className="dna-label dna-label-a">
+                A
+              </div>
 
-    <div className="dna-label dna-label-t">
-      T
-    </div>
+              <div className="dna-label dna-label-t">
+                T
+              </div>
 
-    <div className="dna-label dna-label-g">
-      G
-    </div>
+              <div className="dna-label dna-label-g">
+                G
+              </div>
 
-    <div className="dna-label dna-label-c">
-      C
-    </div>
+              <div className="dna-label dna-label-c">
+                C
+              </div>
 
-  </div>
+            </div>
 
-</div>
+          </div>
 
         </div>
 
       </section>
 
-      {/* =================================================
-          SINGLE DNA ANALYSIS
-      ================================================= */}
+      {/* SINGLE DNA ANALYSIS */}
 
       <section
         id="analysis"
@@ -810,30 +774,12 @@ export default function Home() {
             </h3>
 
             {[
-              [
-                "🧬",
-                "Base Statistics",
-              ],
-              [
-                "📊",
-                "GC / AT Content",
-              ],
-              [
-                "🔢",
-                "3-mer Frequency",
-              ],
-              [
-                "🔄",
-                "Reverse Complement",
-              ],
-              [
-                "🧪",
-                "RNA Transcription",
-              ],
-              [
-                "🧫",
-                "Protein Translation",
-              ],
+              ["🧬", "Base Statistics"],
+              ["📊", "GC / AT Content"],
+              ["🔢", "3-mer Frequency"],
+              ["🔄", "Reverse Complement"],
+              ["🧪", "RNA Transcription"],
+              ["🧫", "Protein Translation"],
             ].map(
               ([icon, title]) => (
 
@@ -869,9 +815,7 @@ export default function Home() {
 
       </section>
 
-      {/* =================================================
-          SINGLE RESULT
-      ================================================= */}
+      {/* SINGLE RESULT */}
 
       {result && (
 
@@ -894,10 +838,7 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
 
                 {[
-                  [
-                    "Length",
-                    result.length,
-                  ],
+                  ["Length", result.length],
                   [
                     "A",
                     result.num_A ??
@@ -988,9 +929,7 @@ export default function Home() {
 
       )}
 
-      {/* =================================================
-          CSV SECTION
-      ================================================= */}
+      {/* CSV SECTION */}
 
       <section
         id="batch"
@@ -1065,7 +1004,7 @@ Sample3,ATGTTTGGCCAA`}
 
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,text/csv"
                 onChange={
                   handleCSVUpload
                 }
@@ -1102,15 +1041,13 @@ Sample3,ATGTTTGGCCAA`}
 
           )}
 
-          {/* ANALYZE */}
+          {/* ANALYZE BUTTON */}
 
           {csvData.length > 0 && (
 
             <button
               onClick={analyzeCSV}
-              disabled={
-                csvAnalyzing
-              }
+              disabled={csvAnalyzing}
               className="mt-6 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-7 py-4 font-bold text-white shadow-lg transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
             >
 
@@ -1122,9 +1059,7 @@ Sample3,ATGTTTGGCCAA`}
 
           )}
 
-          {/* =================================================
-              CSV RESULTS
-          ================================================= */}
+          {/* CSV RESULTS */}
 
           {csvResults.length > 0 && (
 
@@ -1205,13 +1140,9 @@ Sample3,ATGTTTGGCCAA`}
                           className="border-t border-slate-200 hover:bg-indigo-50"
                         >
 
-                          {/* SAMPLE ID */}
-
                           <td className="whitespace-nowrap px-4 py-4 font-bold text-blue-700">
                             {row.sampleID}
                           </td>
-
-                          {/* SEQUENCE */}
 
                           <td className="max-w-[250px] px-4 py-4">
 
@@ -1222,16 +1153,12 @@ Sample3,ATGTTTGGCCAA`}
 
                           </td>
 
-                          {/* GC */}
-
                           <td className="px-4 py-4 font-bold text-indigo-700">
                             {row.GC !==
                             "—"
                               ? `${row.GC}%`
                               : "—"}
                           </td>
-
-                          {/* AT */}
 
                           <td className="px-4 py-4 font-bold text-violet-700">
                             {row.AT !==
@@ -1240,37 +1167,25 @@ Sample3,ATGTTTGGCCAA`}
                               : "—"}
                           </td>
 
-                          {/* LENGTH */}
-
                           <td className="px-4 py-4 font-bold text-slate-800">
                             {row.length}
                           </td>
-
-                          {/* A */}
 
                           <td className="px-4 py-4 font-semibold">
                             {row.num_A}
                           </td>
 
-                          {/* T */}
-
                           <td className="px-4 py-4 font-semibold">
                             {row.num_T}
                           </td>
-
-                          {/* C */}
 
                           <td className="px-4 py-4 font-semibold">
                             {row.num_C}
                           </td>
 
-                          {/* G */}
-
                           <td className="px-4 py-4 font-semibold">
                             {row.num_G}
                           </td>
-
-                          {/* KMER */}
 
                           <td className="max-w-[400px] px-4 py-4">
 
@@ -1301,9 +1216,7 @@ Sample3,ATGTTTGGCCAA`}
 
       </section>
 
-      {/* =================================================
-          ABOUT
-      ================================================= */}
+      {/* ABOUT */}
 
       <section
         id="about"
@@ -1339,9 +1252,7 @@ Sample3,ATGTTTGGCCAA`}
 
       </section>
 
-      {/* =================================================
-          FOOTER
-      ================================================= */}
+      {/* FOOTER */}
 
       <footer className="bg-slate-950 py-8 text-white">
 
@@ -1404,4 +1315,3 @@ function ResultCard({
 
   );
 }
-
