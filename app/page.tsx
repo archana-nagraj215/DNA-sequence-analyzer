@@ -299,37 +299,62 @@ export default function Home() {
   // ANALYZE CSV
   // =====================================================
 
-  async function analyzeCSV() {
-    if (csvData.length === 0) {
-      alert(
-        "Please upload a CSV file first."
-      );
+ async function analyzeCSV() {
+  if (csvData.length === 0) {
+    alert("Please upload a CSV file first.");
+    return;
+  }
 
-      return;
-    }
+  setCsvAnalyzing(true);
+  setCsvResults([]);
 
-    setCsvAnalyzing(true);
-    setCsvResults([]);
-
+  try {
     const results: CSVResult[] = [];
 
-    for (
-      let i = 0;
-      i < csvData.length;
-      i++
-    ) {
+    for (let i = 0; i < csvData.length; i++) {
       const row = csvData[i];
 
-      const sampleID =
-        row.sampleID ||
-        `Sample${i + 1}`;
-
+      const sampleID = row.sampleID || `Sample${i + 1}`;
       const dnaSequence =
-        row.sequence
-          ?.toUpperCase()
-          .replace(/\s/g, "")
-          .trim() || "";
+        row.sequence?.toUpperCase().replace(/\s/g, "").trim() || "";
 
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sequence: dnaSequence,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      results.push({
+        sampleID,
+        sequence: dnaSequence,
+        length: data.length,
+        gc_content: data.gc_content,
+        at_content: data.at_content,
+        a: data.a,
+        t: data.t,
+        g: data.g,
+        c: data.c,
+      });
+    }
+
+    setCsvResults(results);
+  } catch (error) {
+    console.error("CSV Analysis Error:", error);
+    alert("Failed to analyze CSV.");
+  } finally {
+    setCsvAnalyzing(false);
+  }
+}
       // ---------------------------------------------
       // Empty sequence
       // ---------------------------------------------
