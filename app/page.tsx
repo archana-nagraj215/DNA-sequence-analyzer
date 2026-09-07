@@ -2,8 +2,19 @@
 
 import { useState } from "react";
 import Papa from "papaparse";
+import jsPDF from "jspdf";
+
+/* =========================================================
+   TYPES
+========================================================= */
+
+type ProteinItem = {
+  codon: string;
+  aminoAcid: string;
+};
 
 type DNAResult = {
+  sample_name?: string;
   sequence?: string;
   length?: number;
 
@@ -12,1306 +23,2797 @@ type DNAResult = {
   G?: number;
   C?: number;
 
-  num_A?: number;
-  num_T?: number;
-  num_G?: number;
-  num_C?: number;
-
   GC?: number;
   AT?: number;
 
-  gc_content?: number;
-  at_content?: number;
+  reverse_complement?: string;
+  rna?: string;
 
-  kmer_3_freq?: Record<string, number>;
+  protein?: ProteinItem[];
 
-  reverseComplement?: string;
-  RNA?: string;
-  protein?: string;
+  three_mer_frequency?: Record<string, number>;
 
-  error?: string;
+  reference_similarity?: number;
+  reference_status?: string;
 };
 
 type CSVRow = {
-  sampleID: string;
-  sequence: string;
+  sample_name?: string;
+  sampleID?: string;
+  sample?: string;
+  sequence?: string;
+  DNA?: string;
+
+  [key: string]: string | undefined;
 };
 
-type CSVResult = {
-  sampleID: string;
-  sequence: string;
+type AnalysisResponse = {
+  success: boolean;
+  results: DNAResult[];
+  reference?: string | null;
+  threshold?: number;
 
-  GC: number | string;
-  AT: number | string;
-
-  length: number | string;
-
-  num_A: number | string;
-  num_T: number | string;
-  num_C: number | string;
-  num_G: number | string;
-
-  kmer_3_frequency: Record<string, number>;
+  summary?: {
+    total_samples: number;
+    matched: number;
+    mismatched: number;
+  };
 
   error?: string;
 };
 
+/* =========================================================
+   DNA HELIX
+========================================================= */
+
+function DNAHelix() {
+  return (
+    <div className="dna-hero-graphic">
+      <svg
+        viewBox="0 0 520 520"
+        className="dna-svg"
+        aria-label="DNA double helix illustration"
+      >
+        {/* Left strand */}
+        <path
+          d="M170 20 C360 100 360 180 170 260 C-20 340 -20 420 170 500"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="7"
+          strokeLinecap="round"
+        />
+
+        {/* Right strand */}
+        <path
+          d="M350 20 C160 100 160 180 350 260 C540 340 540 420 350 500"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="7"
+          strokeLinecap="round"
+        />
+
+        {/* Base pairs */}
+        <line x1="210" y1="45" x2="310" y2="45" />
+        <line x1="260" y1="85" x2="260" y2="85" />
+
+        <line x1="280" y1="100" x2="240" y2="100" />
+        <line x1="300" y1="140" x2="220" y2="140" />
+
+        <line x1="300" y1="180" x2="220" y2="180" />
+        <line x1="280" y1="220" x2="240" y2="220" />
+
+        <line x1="210" y1="260" x2="310" y2="260" />
+
+        <line x1="220" y1="300" x2="300" y2="300" />
+        <line x1="240" y1="340" x2="280" y2="340" />
+
+        <line x1="220" y1="380" x2="300" y2="380" />
+        <line x1="210" y1="420" x2="310" y2="420" />
+
+        <line x1="220" y1="460" x2="300" y2="460" />
+
+        <g
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+        >
+          <line x1="210" y1="45" x2="310" y2="45" />
+          <line x1="280" y1="100" x2="240" y2="100" />
+          <line x1="300" y1="140" x2="220" y2="140" />
+          <line x1="300" y1="180" x2="220" y2="180" />
+          <line x1="280" y1="220" x2="240" y2="220" />
+          <line x1="210" y1="260" x2="310" y2="260" />
+          <line x1="220" y1="300" x2="300" y2="300" />
+          <line x1="240" y1="340" x2="280" y2="340" />
+          <line x1="220" y1="380" x2="300" y2="380" />
+          <line x1="210" y1="420" x2="310" y2="420" />
+          <line x1="220" y1="460" x2="300" y2="460" />
+        </g>
+
+        {/* Nucleotide circles */}
+        <g fill="currentColor">
+          <circle cx="170" cy="20" r="8" />
+          <circle cx="350" cy="20" r="8" />
+          <circle cx="170" cy="260" r="8" />
+          <circle cx="350" cy="260" r="8" />
+          <circle cx="170" cy="500" r="8" />
+          <circle cx="350" cy="500" r="8" />
+        </g>
+      </svg>
+
+      <div className="dna-floating-card dna-card-one">
+        <strong>DNA</strong>
+        <span>Sequence</span>
+      </div>
+
+      <div className="dna-floating-card dna-card-two">
+        <strong>GC</strong>
+        <span>Composition</span>
+      </div>
+
+      <div className="dna-floating-card dna-card-three">
+        <strong>RNA</strong>
+        <span>Translation</span>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   STAT ICON
+========================================================= */
+
+function StatIcon({ letter }: { letter: string }) {
+  return <div className="base-icon">{letter}</div>;
+}
+
+/* =========================================================
+   MAIN
+========================================================= */
+
 export default function Home() {
-  // =====================================================
-  // SINGLE DNA ANALYSIS
-  // =====================================================
+  /* =======================================================
+     SINGLE ANALYSIS
+  ======================================================= */
 
-  const [sequence, setSequence] = useState("");
-  const [result, setResult] = useState<DNAResult | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [dnaSequence, setDnaSequence] = useState("");
 
-  // =====================================================
-  // CSV
-  // =====================================================
+  const [singleResult, setSingleResult] =
+    useState<DNAResult | null>(null);
 
-  const [csvData, setCsvData] = useState<CSVRow[]>([]);
-  const [csvFileName, setCsvFileName] = useState("");
-  const [csvResults, setCsvResults] = useState<CSVResult[]>([]);
-  const [csvAnalyzing, setCsvAnalyzing] = useState(false);
+  const [singleError, setSingleError] = useState("");
 
-  // =====================================================
-  // SINGLE DNA ANALYSIS
-  // =====================================================
+  const [singleLoading, setSingleLoading] =
+    useState(false);
 
-  async function analyzeDNA() {
-    if (!sequence.trim()) {
-      setResult({
-        error: "Please enter a DNA sequence first.",
-      });
+  /* =======================================================
+     CSV
+  ======================================================= */
+
+  const [csvFileName, setCsvFileName] =
+    useState("");
+
+  const [csvRows, setCsvRows] =
+    useState<CSVRow[]>([]);
+
+  const [batchResults, setBatchResults] =
+    useState<DNAResult[]>([]);
+
+  const [batchError, setBatchError] =
+    useState("");
+
+  const [batchLoading, setBatchLoading] =
+    useState(false);
+
+  /* =======================================================
+     REFERENCE
+  ======================================================= */
+
+  const [referenceMode, setReferenceMode] =
+    useState<"type" | "upload">("type");
+
+  const [referenceSequence, setReferenceSequence] =
+    useState("");
+
+  const [referenceFileName, setReferenceFileName] =
+    useState("");
+
+  const [referenceError, setReferenceError] =
+    useState("");
+
+  const [referenceResults, setReferenceResults] =
+    useState<DNAResult[]>([]);
+
+  const [referenceSummary, setReferenceSummary] =
+    useState<AnalysisResponse["summary"]>();
+
+  const [referenceLoading, setReferenceLoading] =
+    useState(false);
+
+  /* =======================================================
+     SINGLE DNA ANALYSIS
+  ======================================================= */
+
+  async function analyzeSingleDNA() {
+    setSingleError("");
+    setSingleResult(null);
+
+    const sequence = dnaSequence
+      .toUpperCase()
+      .replace(/\s+/g, "");
+
+    if (!sequence) {
+      setSingleError(
+        "Please enter a DNA sequence."
+      );
       return;
     }
 
-    setLoading(true);
-    setResult(null);
+    if (!/^[ATGC]+$/.test(sequence)) {
+      setSingleError(
+        "Invalid sequence. Only A, T, G and C are allowed."
+      );
+      return;
+    }
 
     try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sequence,
-        }),
-      });
+      setSingleLoading(true);
 
-      const data: DNAResult = await response.json();
+      const response = await fetch(
+        "/api/analyze",
+        {
+          method: "POST",
 
-      if (!response.ok) {
-        setResult({
-          error:
-            data.error ||
-            `Analysis failed with status ${response.status}.`,
-        });
-        return;
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            samples: [
+              {
+                sample_name:
+                  "Single DNA Sample",
+
+                sequence,
+              },
+            ],
+          }),
+        }
+      );
+
+      const data: AnalysisResponse =
+        await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            "Analysis failed."
+        );
       }
 
-      setResult(data);
+      setSingleResult(
+        data.results[0]
+      );
     } catch (error) {
-      console.error("DNA analysis error:", error);
-
-      setResult({
-        error:
-          "Unable to connect to the DNA analysis API.",
-      });
+      setSingleError(
+        error instanceof Error
+          ? error.message
+          : "DNA analysis failed."
+      );
     } finally {
-      setLoading(false);
+      setSingleLoading(false);
     }
   }
 
-  // =====================================================
-  // CLEAR SINGLE DNA
-  // =====================================================
-
-  function clearSequence() {
-    setSequence("");
-    setResult(null);
+  function clearSingleDNAAnalysis() {
+    setDnaSequence("");
+    setSingleResult(null);
+    setSingleError("");
   }
 
-  // =====================================================
-  // CSV UPLOAD
-  // =====================================================
+  /* =======================================================
+     CSV UPLOAD
+  ======================================================= */
 
   function handleCSVUpload(
     event: React.ChangeEvent<HTMLInputElement>
   ) {
-    const file = event.target.files?.[0];
+    const file =
+      event.target.files?.[0];
 
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     setCsvFileName(file.name);
-    setCsvData([]);
-    setCsvResults([]);
+    setCsvRows([]);
+    setBatchResults([]);
+    setBatchError("");
 
-    Papa.parse<Record<string, string>>(file, {
+    Papa.parse<CSVRow>(file, {
       header: true,
+
       skipEmptyLines: true,
 
-      transformHeader: (header: string) =>
-        header.trim(),
-
       complete: (results) => {
-        console.log(
-          "Uploaded CSV:",
-          results.data
-        );
-
         if (!results.data.length) {
-          alert("The CSV file is empty.");
-          return;
-        }
-
-        // ---------------------------------------------
-        // Find sequence column
-        // ---------------------------------------------
-
-        const firstRow = results.data[0];
-
-        const sequenceKey = Object.keys(
-          firstRow
-        ).find(
-          (key) =>
-            key.trim().toLowerCase() ===
-            "sequence"
-        );
-
-        if (!sequenceKey) {
-          alert(
-            "The CSV must contain a column named 'sequence'."
+          setBatchError(
+            "The CSV file is empty."
           );
           return;
         }
 
-        // ---------------------------------------------
-        // Find optional sample ID column
-        // ---------------------------------------------
-
-        const sampleKey = Object.keys(
-          firstRow
-        ).find((key) => {
-          const normalized =
-            key.trim().toLowerCase();
-
-          return (
-            normalized === "sampleid" ||
-            normalized === "sample_id" ||
-            normalized === "sample_name"
-          );
-        });
-
-        // ---------------------------------------------
-        // Normalize CSV rows
-        // ---------------------------------------------
-
-        const normalizedRows: CSVRow[] =
-          results.data
-            .map((row, index) => {
-              const dna = String(
-                row[sequenceKey] || ""
-              )
-                .toUpperCase()
-                .replace(/\s/g, "")
-                .trim();
-
-              const sample = sampleKey
-                ? String(
-                    row[sampleKey] || ""
-                  ).trim()
-                : "";
-
-              return {
-                sampleID:
-                  sample ||
-                  `Sample${index + 1}`,
-                sequence: dna,
-              };
-            })
-            .filter(
-              (row) =>
-                row.sequence.length > 0
-            );
-
-        // ---------------------------------------------
-        // Validate rows
-        // ---------------------------------------------
-
-        if (!normalizedRows.length) {
-          alert(
-            "No DNA sequences were found in the CSV."
-          );
-          return;
-        }
-
-        setCsvData(normalizedRows);
+        setCsvRows(results.data);
       },
 
       error: (error) => {
-        console.error(
-          "CSV parsing error:",
-          error
-        );
-
-        alert(
-          "There was a problem reading the CSV file."
+        setBatchError(
+          `CSV parsing failed: ${error.message}`
         );
       },
     });
-
-    // Allow selecting the same file again
-    event.target.value = "";
   }
 
-  // =====================================================
-  // ANALYZE CSV
-  // =====================================================
+  /* =======================================================
+     BATCH ANALYSIS
+  ======================================================= */
 
   async function analyzeCSV() {
-    if (csvData.length === 0) {
-      alert("Please upload a CSV file first.");
+    setBatchError("");
+
+    if (!csvRows.length) {
+      setBatchError(
+        "Please upload a CSV file first."
+      );
       return;
     }
 
-    setCsvAnalyzing(true);
-    setCsvResults([]);
+    const sequenceKey =
+      Object.keys(csvRows[0]).find(
+        (key) => {
+          const name =
+            key.toLowerCase().trim();
 
-    const results: CSVResult[] = [];
+          return (
+            name === "sequence" ||
+            name === "dna"
+          );
+        }
+      );
+
+    if (!sequenceKey) {
+      setBatchError(
+        "CSV must contain a 'sequence' or 'DNA' column."
+      );
+      return;
+    }
+
+    const samples = csvRows
+      .map((row, index) => ({
+        sample_name:
+          row.sample_name ||
+          row.sampleID ||
+          row.sample ||
+          `Sample ${index + 1}`,
+
+        sequence:
+          row[sequenceKey]
+            ?.toUpperCase()
+            .replace(/\s+/g, "") ||
+          "",
+      }))
+      .filter(
+        (sample) =>
+          sample.sequence.length > 0
+      );
+
+    if (!samples.length) {
+      setBatchError(
+        "No DNA sequences were found."
+      );
+      return;
+    }
 
     try {
-      for (let i = 0; i < csvData.length; i++) {
-        const row = csvData[i];
+      setBatchLoading(true);
 
-        const sampleID =
-          row.sampleID ||
-          `Sample${i + 1}`;
+      const response = await fetch(
+        "/api/analyze",
+        {
+          method: "POST",
 
-        const dnaSequence =
-          row.sequence
-            ?.toUpperCase()
-            .replace(/\s/g, "")
-            .trim() || "";
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
 
-        // ---------------------------------------------
-        // Empty sequence
-        // ---------------------------------------------
-
-        if (!dnaSequence) {
-          results.push({
-            sampleID,
-            sequence: "",
-            GC: "—",
-            AT: "—",
-            length: "—",
-            num_A: "—",
-            num_T: "—",
-            num_C: "—",
-            num_G: "—",
-            kmer_3_frequency: {},
-            error:
-              "No DNA sequence found.",
-          });
-
-          continue;
+          body: JSON.stringify({
+            samples,
+          }),
         }
+      );
 
-        try {
-          // -------------------------------------------
-          // Call SAME Vercel API
-          // -------------------------------------------
+      const data: AnalysisResponse =
+        await response.json();
 
-          const response = await fetch(
-            "/api/analyze",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body: JSON.stringify({
-                sequence: dnaSequence,
-              }),
-            }
-          );
-
-          const data: DNAResult =
-            await response.json();
-
-          // -------------------------------------------
-          // API error
-          // -------------------------------------------
-
-          if (
-            !response.ok ||
-            data.error
-          ) {
-            results.push({
-              sampleID,
-              sequence: dnaSequence,
-              GC: "—",
-              AT: "—",
-              length: "—",
-              num_A: "—",
-              num_T: "—",
-              num_C: "—",
-              num_G: "—",
-              kmer_3_frequency: {},
-              error:
-                data.error ||
-                "Unable to analyze sequence.",
-            });
-
-            continue;
-          }
-
-          // -------------------------------------------
-          // Base counts
-          // -------------------------------------------
-
-          const num_A =
-            data.num_A ??
-            data.A ??
-            0;
-
-          const num_T =
-            data.num_T ??
-            data.T ??
-            0;
-
-          const num_C =
-            data.num_C ??
-            data.C ??
-            0;
-
-          const num_G =
-            data.num_G ??
-            data.G ??
-            0;
-
-          // -------------------------------------------
-          // GC / AT
-          // -------------------------------------------
-
-          const GC =
-            data.gc_content ??
-            data.GC ??
-            0;
-
-          const AT =
-            data.at_content ??
-            data.AT ??
-            0;
-
-          // -------------------------------------------
-          // Store result
-          // -------------------------------------------
-
-          results.push({
-            sampleID,
-
-            sequence:
-              data.sequence ||
-              dnaSequence,
-
-            GC,
-            AT,
-
-            length:
-              data.length ??
-              dnaSequence.length,
-
-            num_A,
-            num_T,
-            num_C,
-            num_G,
-
-            kmer_3_frequency:
-              data.kmer_3_freq ||
-              {},
-          });
-        } catch (error) {
-          console.error(
-            `Error analyzing ${sampleID}:`,
-            error
-          );
-
-          results.push({
-            sampleID,
-            sequence: dnaSequence,
-            GC: "—",
-            AT: "—",
-            length: "—",
-            num_A: "—",
-            num_T: "—",
-            num_C: "—",
-            num_G: "—",
-            kmer_3_frequency: {},
-            error:
-              "Unable to analyze this sequence.",
-          });
-        }
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            "Batch analysis failed."
+        );
       }
 
-      setCsvResults(results);
-    } catch (error) {
-      console.error(
-        "CSV Analysis Error:",
-        error
+      setBatchResults(
+        data.results
       );
-
-      alert(
-        "Failed to analyze CSV."
+    } catch (error) {
+      setBatchError(
+        error instanceof Error
+          ? error.message
+          : "Batch analysis failed."
       );
     } finally {
-      setCsvAnalyzing(false);
+      setBatchLoading(false);
     }
   }
 
-  // =====================================================
-  // FORMAT K-MER
-  // =====================================================
+  /* =======================================================
+     REFERENCE TEXT
+  ======================================================= */
 
-  function formatKmer(
-    kmer: Record<string, number>
+  function handleReferenceText(
+    event: React.ChangeEvent<HTMLTextAreaElement>
   ) {
-    const entries =
-      Object.entries(kmer);
+    setReferenceSequence(
+      event.target.value.toUpperCase()
+    );
 
-    if (entries.length === 0) {
-      return "—";
-    }
-
-    return entries
-      .map(
-        ([key, value]) =>
-          `${key}: ${value}`
-      )
-      .join(", ");
+    setReferenceFileName("");
+    setReferenceError("");
+    setReferenceResults([]);
+    setReferenceSummary(undefined);
   }
 
-  // =====================================================
-  // UI
-  // =====================================================
+  /* =======================================================
+     REFERENCE FILE
+  ======================================================= */
+
+  function handleReferenceUpload(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file =
+      event.target.files?.[0];
+
+    if (!file) return;
+
+    setReferenceFileName(file.name);
+    setReferenceError("");
+    setReferenceSequence("");
+    setReferenceResults([]);
+    setReferenceSummary(undefined);
+
+    const extension =
+      file.name
+        .split(".")
+        .pop()
+        ?.toLowerCase();
+
+    /* CSV */
+
+    if (extension === "csv") {
+      Papa.parse<CSVRow>(file, {
+        header: true,
+        skipEmptyLines: true,
+
+        complete: (results) => {
+          if (!results.data.length) {
+            setReferenceError(
+              "Reference CSV is empty."
+            );
+            return;
+          }
+
+          const firstRow =
+            results.data[0];
+
+          const sequenceKey =
+            Object.keys(firstRow).find(
+              (key) => {
+                const lower =
+                  key.toLowerCase().trim();
+
+                return (
+                  lower === "sequence" ||
+                  lower === "dna"
+                );
+              }
+            );
+
+          if (!sequenceKey) {
+            setReferenceError(
+              "Reference CSV must contain a sequence or DNA column."
+            );
+            return;
+          }
+
+          const row =
+            results.data.find(
+              (item) =>
+                item[sequenceKey] &&
+                item[sequenceKey]!.trim()
+            );
+
+          if (!row) {
+            setReferenceError(
+              "No reference DNA sequence was found."
+            );
+            return;
+          }
+
+          const sequence =
+            row[sequenceKey]!
+              .toUpperCase()
+              .replace(/\s+/g, "");
+
+          if (!/^[ATGC]+$/.test(sequence)) {
+            setReferenceError(
+              "Reference contains invalid DNA characters."
+            );
+            return;
+          }
+
+          setReferenceSequence(
+            sequence
+          );
+        },
+
+        error: (error) => {
+          setReferenceError(
+            error.message
+          );
+        },
+      });
+
+      return;
+    }
+
+    /* TXT / FASTA / FA */
+
+    if (
+      extension === "txt" ||
+      extension === "fasta" ||
+      extension === "fa"
+    ) {
+      const reader =
+        new FileReader();
+
+      reader.onload = () => {
+        const text =
+          String(
+            reader.result || ""
+          );
+
+        const sequence = text
+          .split(/\r?\n/)
+          .filter(
+            (line) =>
+              !line
+                .trim()
+                .startsWith(">")
+          )
+          .join("")
+          .replace(/\s+/g, "")
+          .toUpperCase();
+
+        if (!sequence) {
+          setReferenceError(
+            "No DNA sequence was found."
+          );
+          return;
+        }
+
+        if (!/^[ATGC]+$/.test(sequence)) {
+          setReferenceError(
+            "Reference contains invalid DNA characters."
+          );
+          return;
+        }
+
+        setReferenceSequence(
+          sequence
+        );
+      };
+
+      reader.onerror = () => {
+        setReferenceError(
+          "Unable to read reference file."
+        );
+      };
+
+      reader.readAsText(file);
+
+      return;
+    }
+
+    setReferenceError(
+      "Supported formats are CSV, TXT, FASTA and FA."
+    );
+  }
+
+  /* =======================================================
+     REFERENCE COMPARISON
+  ======================================================= */
+
+  async function compareReference() {
+    setReferenceError("");
+
+    if (!referenceSequence.trim()) {
+      setReferenceError(
+        "Please enter or upload a reference sequence."
+      );
+      return;
+    }
+
+    const reference =
+      referenceSequence
+        .toUpperCase()
+        .replace(/\s+/g, "");
+
+    if (!/^[ATGC]+$/.test(reference)) {
+      setReferenceError(
+        "Reference sequence can contain only A, T, G and C."
+      );
+      return;
+    }
+
+    if (!batchResults.length) {
+      setReferenceError(
+        "Please analyze your CSV batch first."
+      );
+      return;
+    }
+
+    try {
+      setReferenceLoading(true);
+
+      const samples =
+        batchResults.map(
+          (result, index) => ({
+            sample_name:
+              result.sample_name ||
+              `Sample ${index + 1}`,
+
+            sequence:
+              result.sequence || "",
+          })
+        );
+
+      const response = await fetch(
+        "/api/analyze",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            samples,
+            reference,
+          }),
+        }
+      );
+
+      const data: AnalysisResponse =
+        await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            "Reference comparison failed."
+        );
+      }
+
+      setReferenceResults(
+        data.results
+      );
+
+      setReferenceSummary(
+        data.summary
+      );
+    } catch (error) {
+      setReferenceError(
+        error instanceof Error
+          ? error.message
+          : "Reference comparison failed."
+      );
+    } finally {
+      setReferenceLoading(false);
+    }
+  }
+
+  /* =======================================================
+     PDF SINGLE
+     
+     FIX:
+     Long DNA/RNA sequences are now:
+     - Split into 60 bases per line
+     - Numbered by starting position
+     - Kept in monospaced font
+     - Automatically moved to new pages
+     - Prevented from overlapping
+  ======================================================= */
+
+  function exportSinglePDF() {
+    if (!singleResult) return;
+
+    const pdf = new jsPDF();
+
+    const pageWidth =
+      pdf.internal.pageSize.getWidth();
+
+    const pageHeight =
+      pdf.internal.pageSize.getHeight();
+
+    const leftMargin = 20;
+    const rightMargin = 20;
+    const topMargin = 20;
+    const bottomMargin = 20;
+
+    let y = topMargin;
+
+    /* =====================================================
+       PAGE CONTROL
+    ===================================================== */
+
+    function addPageIfNeeded(
+      requiredHeight: number
+    ) {
+      if (
+        y + requiredHeight >
+        pageHeight - bottomMargin
+      ) {
+        pdf.addPage();
+        y = topMargin;
+      }
+    }
+
+    /* =====================================================
+       SECTION TITLE
+    ===================================================== */
+
+    function addSectionTitle(
+      title: string
+    ) {
+      addPageIfNeeded(20);
+
+      pdf.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      pdf.setFontSize(12);
+
+      pdf.text(
+        title,
+        leftMargin,
+        y
+      );
+
+      y += 5;
+
+      pdf.setLineWidth(0.3);
+
+      pdf.line(
+        leftMargin,
+        y,
+        pageWidth - rightMargin,
+        y
+      );
+
+      y += 9;
+    }
+
+    /* =====================================================
+       SEQUENCE FORMATTER
+    ===================================================== */
+
+    function addSequenceSection(
+      title: string,
+      sequence: string,
+      basesPerLine = 60
+    ) {
+      if (!sequence) return;
+
+      addSectionTitle(title);
+
+      const cleanSequence =
+        sequence
+          .replace(/\s+/g, "")
+          .toUpperCase();
+
+      pdf.setFont(
+        "courier",
+        "normal"
+      );
+
+      pdf.setFontSize(9);
+
+      for (
+        let i = 0;
+        i < cleanSequence.length;
+        i += basesPerLine
+      ) {
+        addPageIfNeeded(8);
+
+        const chunk =
+          cleanSequence.slice(
+            i,
+            i + basesPerLine
+          );
+
+        const position =
+          String(i + 1).padStart(
+            7,
+            " "
+          );
+
+        pdf.text(
+          `${position}  ${chunk}`,
+          leftMargin,
+          y
+        );
+
+        y += 6;
+      }
+
+      y += 6;
+    }
+
+    /* =====================================================
+       REPORT TITLE
+    ===================================================== */
+
+    pdf.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    pdf.setFontSize(20);
+
+    pdf.text(
+      "DNA Sequence Analysis Report",
+      leftMargin,
+      y
+    );
+
+    y += 10;
+
+    pdf.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    pdf.setFontSize(10);
+
+    pdf.text(
+      "Computational Biology / Bioinformatics Analysis",
+      leftMargin,
+      y
+    );
+
+    y += 12;
+
+    pdf.setLineWidth(0.5);
+
+    pdf.line(
+      leftMargin,
+      y,
+      pageWidth - rightMargin,
+      y
+    );
+
+    y += 12;
+
+    /* =====================================================
+       SAMPLE INFORMATION
+    ===================================================== */
+
+    pdf.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    pdf.setFontSize(12);
+
+    pdf.text(
+      "Sample Information",
+      leftMargin,
+      y
+    );
+
+    y += 8;
+
+    pdf.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    pdf.setFontSize(10);
+
+    pdf.text(
+      `Sample: ${
+        singleResult.sample_name ||
+        "Single DNA Sample"
+      }`,
+      leftMargin,
+      y
+    );
+
+    y += 7;
+
+    pdf.text(
+      `Sequence Length: ${
+        singleResult.length || 0
+      } bp`,
+      leftMargin,
+      y
+    );
+
+    y += 12;
+
+    /* =====================================================
+       NUCLEOTIDE COMPOSITION
+    ===================================================== */
+
+    pdf.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    pdf.setFontSize(12);
+
+    pdf.text(
+      "Nucleotide Composition",
+      leftMargin,
+      y
+    );
+
+    y += 8;
+
+    pdf.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    pdf.setFontSize(10);
+
+    pdf.text(
+      `Adenine (A): ${
+        singleResult.A || 0
+      }`,
+      leftMargin,
+      y
+    );
+
+    pdf.text(
+      `Thymine (T): ${
+        singleResult.T || 0
+      }`,
+      leftMargin + 55,
+      y
+    );
+
+    y += 7;
+
+    pdf.text(
+      `Guanine (G): ${
+        singleResult.G || 0
+      }`,
+      leftMargin,
+      y
+    );
+
+    pdf.text(
+      `Cytosine (C): ${
+        singleResult.C || 0
+      }`,
+      leftMargin + 55,
+      y
+    );
+
+    y += 7;
+
+    pdf.text(
+      `GC Content: ${
+        singleResult.GC || 0
+      }%`,
+      leftMargin,
+      y
+    );
+
+    pdf.text(
+      `AT Content: ${
+        singleResult.AT || 0
+      }%`,
+      leftMargin + 55,
+      y
+    );
+
+    y += 15;
+
+    /* =====================================================
+       DNA SEQUENCE
+    ===================================================== */
+
+    addSequenceSection(
+      "DNA Sequence",
+      singleResult.sequence || ""
+    );
+
+    /* =====================================================
+       DNA → RNA
+    ===================================================== */
+
+    addSequenceSection(
+      "DNA → RNA Transcription",
+      singleResult.rna || ""
+    );
+
+    /* =====================================================
+       REVERSE COMPLEMENT
+    ===================================================== */
+
+    addSequenceSection(
+      "Reverse Complement",
+      singleResult.reverse_complement ||
+        ""
+    );
+
+    /* =====================================================
+       PROTEIN TRANSLATION
+    ===================================================== */
+
+    if (
+      singleResult.protein &&
+      singleResult.protein.length > 0
+    ) {
+      addSectionTitle(
+        "RNA → Protein Translation"
+      );
+
+      pdf.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      pdf.setFontSize(9);
+
+      pdf.text(
+        "Codon",
+        leftMargin,
+        y
+      );
+
+      pdf.text(
+        "Amino Acid",
+        leftMargin + 45,
+        y
+      );
+
+      y += 6;
+
+      pdf.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      singleResult.protein.forEach(
+        (item) => {
+          addPageIfNeeded(7);
+
+          pdf.text(
+            item.codon,
+            leftMargin,
+            y
+          );
+
+          pdf.text(
+            item.aminoAcid,
+            leftMargin + 45,
+            y
+          );
+
+          y += 6;
+        }
+      );
+    } else {
+      addSectionTitle(
+        "RNA → Protein Translation"
+      );
+
+      pdf.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      pdf.setFontSize(10);
+
+      pdf.text(
+        "No complete codons available for translation.",
+        leftMargin,
+        y
+      );
+
+      y += 10;
+    }
+
+    /* =====================================================
+       FOOTER ON EVERY PAGE
+    ===================================================== */
+
+    const totalPages =
+      pdf.getNumberOfPages();
+
+    for (
+      let page = 1;
+      page <= totalPages;
+      page++
+    ) {
+      pdf.setPage(page);
+
+      pdf.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      pdf.setFontSize(8);
+
+      pdf.text(
+        `DNA Analyzer • Page ${page} of ${totalPages}`,
+        leftMargin,
+        pageHeight - 10
+      );
+
+      pdf.text(
+        "Computational Biology",
+        pageWidth - 65,
+        pageHeight - 10
+      );
+    }
+
+    /* =====================================================
+       SAVE PDF
+    ===================================================== */
+
+    pdf.save(
+      "DNA_Sequence_Analysis_Report.pdf"
+    );
+  }
+
+  /* =======================================================
+     PDF BATCH
+  ======================================================= */
+
+  function exportBatchPDF() {
+    if (!referenceResults.length) return;
+
+    const pdf =
+      new jsPDF();
+
+    let y = 20;
+
+    pdf.setFontSize(20);
+
+    pdf.text(
+      "DNA Reference Comparison Report",
+      20,
+      y
+    );
+
+    y += 14;
+
+    pdf.setFontSize(11);
+
+    pdf.text(
+      `Reference Length: ${
+        referenceSequence.length
+      } bp`,
+      20,
+      y
+    );
+
+    y += 8;
+
+    pdf.text(
+      "Match Threshold: 90%",
+      20,
+      y
+    );
+
+    y += 14;
+
+    referenceResults.forEach(
+      (result, index) => {
+        if (y > 260) {
+          pdf.addPage();
+          y = 20;
+        }
+
+        pdf.setFontSize(12);
+
+        pdf.text(
+          result.sample_name ||
+            `Sample ${index + 1}`,
+          20,
+          y
+        );
+
+        y += 8;
+
+        pdf.setFontSize(10);
+
+        pdf.text(
+          `Length: ${
+            result.length || 0
+          } bp`,
+          20,
+          y
+        );
+
+        y += 7;
+
+        pdf.text(
+          `GC: ${
+            result.GC || 0
+          }%`,
+          20,
+          y
+        );
+
+        y += 7;
+
+        pdf.text(
+          `Similarity: ${
+            result.reference_similarity ??
+            0
+          }%`,
+          20,
+          y
+        );
+
+        y += 7;
+
+        pdf.text(
+          `Status: ${
+            result.reference_status ||
+            "N/A"
+          }`,
+          20,
+          y
+        );
+
+        y += 12;
+      }
+    );
+
+    pdf.save(
+      "DNA_Reference_Comparison_Report.pdf"
+    );
+  }
+
+  /* =======================================================
+     RETURN
+  ======================================================= */
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+    <main className="app-shell">
 
-      {/* HEADER */}
+      {/* ===================================================
+          NAVIGATION
+      =================================================== */}
 
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+      <nav className="top-nav">
 
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
+        <div className="brand">
 
-          <div className="flex items-center gap-3">
+          <div className="brand-mark">
+            <span>A</span>
+            <span>T</span>
+            <span>G</span>
+            <span>C</span>
+          </div>
 
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 text-2xl shadow-lg">
-              🧬
+          <div>
+            <strong>
+              DNA Analyzer
+            </strong>
+
+            <small>
+              Bioinformatics Platform
+            </small>
+          </div>
+
+        </div>
+
+        <div className="nav-links">
+
+          <a href="#single-analysis">
+            Single Analysis
+          </a>
+
+          <a href="#batch-analysis">
+            Batch Analysis
+          </a>
+
+          <a href="#reference">
+            Reference
+          </a>
+
+          <a href="#reports">
+            Reports
+          </a>
+
+        </div>
+
+      </nav>
+
+      {/* ===================================================
+          HERO
+      =================================================== */}
+
+      <section className="hero">
+
+        <div className="hero-text">
+
+          <div className="eyebrow">
+            COMPUTATIONAL BIOLOGY
+          </div>
+
+          <h1>
+            DNA Sequence
+            <span>
+              Analysis Platform
+            </span>
+          </h1>
+
+          <p className="hero-description">
+            Analyze DNA sequences, identify
+            nucleotide composition, transcribe
+            DNA to RNA, translate RNA to
+            proteins, process multiple samples,
+            and compare sequences against a
+            reference.
+          </p>
+
+          <div className="hero-actions">
+
+            <a
+              href="#single-analysis"
+              className="primary-button"
+            >
+              Start Analysis
+              <span>→</span>
+            </a>
+
+            <a
+              href="#batch-analysis"
+              className="outline-button"
+            >
+              Batch Analysis
+            </a>
+
+          </div>
+
+          <div className="hero-features">
+
+            <div>
+              <strong>
+                A/T/G/C
+              </strong>
+              <span>
+                Base composition
+              </span>
             </div>
 
             <div>
-
-              <h1 className="text-xl font-bold text-slate-900">
-                DNA Analyzer
-              </h1>
-
-              <p className="text-sm text-slate-500">
-                Bioinformatics Platform
-              </p>
-
-            </div>
-
-          </div>
-
-          <nav className="hidden gap-8 text-sm font-medium text-slate-600 md:flex">
-
-            <a
-              href="#"
-              className="hover:text-blue-600"
-            >
-              Home
-            </a>
-
-            <a
-              href="#analysis"
-              className="hover:text-blue-600"
-            >
-              Analysis
-            </a>
-
-            <a
-              href="#batch"
-              className="hover:text-blue-600"
-            >
-              CSV Analysis
-            </a>
-
-            <a
-              href="#about"
-              className="hover:text-blue-600"
-            >
-              About
-            </a>
-
-          </nav>
-
-          <div className="rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">
-            ● API Ready
-          </div>
-
-        </div>
-
-      </header>
-
-      {/* HERO */}
-
-      <section className="mx-auto max-w-7xl px-6 py-16">
-
-        <div className="grid items-center gap-12 lg:grid-cols-2">
-
-          <div>
-
-            <div className="mb-5 inline-flex rounded-full bg-indigo-100 px-4 py-2 text-sm font-semibold text-indigo-700">
-              Computational Biology
-            </div>
-
-            <h2 className="text-5xl font-black leading-tight text-slate-900 md:text-6xl">
-
-              DNA Sequence
-
-              <span className="block bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
-                Analyzer
+              <strong>
+                DNA → RNA
+              </strong>
+              <span>
+                Transcription
               </span>
-
-            </h2>
-
-            <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              Analyze nucleotide composition,
-              GC and AT content, sequence
-              length and k-mer frequencies
-              using a simple bioinformatics
-              workflow.
-            </p>
-
-            <div className="mt-8 flex flex-wrap gap-4">
-
-              <button
-                onClick={() =>
-                  document
-                    .getElementById(
-                      "analysis"
-                    )
-                    ?.scrollIntoView({
-                      behavior: "smooth",
-                    })
-                }
-                className="rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-7 py-4 font-semibold text-white shadow-lg transition hover:scale-105"
-              >
-                Start Analysis →
-              </button>
-
-              <button
-                onClick={() =>
-                  document
-                    .getElementById(
-                      "batch"
-                    )
-                    ?.scrollIntoView({
-                      behavior: "smooth",
-                    })
-                }
-                className="rounded-2xl border border-slate-300 bg-white px-7 py-4 font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Upload CSV
-              </button>
-
             </div>
 
-          </div>
-
-          {/* DNA ANIMATION */}
-
-          <div className="flex justify-center">
-
-            <div className="dna-container">
-
-              <div className="dna-glow"></div>
-
-              <div className="dna">
-
-                <div className="dna-strand dna-strand-left"></div>
-
-                <div className="dna-strand dna-strand-right"></div>
-
-                <div className="dna-base"></div>
-                <div className="dna-base"></div>
-                <div className="dna-base"></div>
-                <div className="dna-base"></div>
-                <div className="dna-base"></div>
-                <div className="dna-base"></div>
-                <div className="dna-base"></div>
-                <div className="dna-base"></div>
-                <div className="dna-base"></div>
-
-              </div>
-
-              <div className="dna-label dna-label-a">
-                A
-              </div>
-
-              <div className="dna-label dna-label-t">
-                T
-              </div>
-
-              <div className="dna-label dna-label-g">
-                G
-              </div>
-
-              <div className="dna-label dna-label-c">
-                C
-              </div>
-
+            <div>
+              <strong>
+                RNA → Protein
+              </strong>
+              <span>
+                Translation
+              </span>
             </div>
 
           </div>
 
         </div>
+
+        <DNAHelix />
 
       </section>
 
-      {/* SINGLE DNA ANALYSIS */}
+      {/* ===================================================
+          SINGLE ANALYSIS
+      =================================================== */}
 
       <section
-        id="analysis"
-        className="mx-auto max-w-7xl px-6"
+        id="single-analysis"
+        className="content-section"
       >
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="section-intro">
 
-          {/* INPUT */}
+          <div className="section-index">
+            01
+          </div>
 
-          <div className="rounded-[30px] border border-slate-200 bg-white p-8 shadow-xl lg:col-span-2">
+          <div>
+            <div className="section-tag">
+              SEQUENCE ANALYSIS
+            </div>
 
-            <div className="mb-6 flex items-center justify-between">
+            <h2>
+              Analyze a DNA Sequence
+            </h2>
+
+            <p>
+              Enter a nucleotide sequence to
+              calculate its fundamental molecular
+              characteristics.
+            </p>
+          </div>
+
+        </div>
+
+        <div className="analysis-layout">
+
+          <div className="sequence-input-panel">
+
+            <div className="panel-header">
 
               <div>
-
-                <h3 className="text-2xl font-bold text-slate-900">
-                  DNA Sequence Input
+                <h3>
+                  Input Sequence
                 </h3>
 
-                <p className="mt-1 text-slate-500">
-                  Enter A, T, G and C bases.
+                <p>
+                  Enter DNA using A, T, G and C.
                 </p>
-
               </div>
 
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700">
-                DNA
+              <span className="status-dot">
+                Ready
               </span>
 
             </div>
 
             <textarea
-              value={sequence}
-              onChange={(e) =>
-                setSequence(
-                  e.target.value
+              value={dnaSequence}
+              onChange={(event) =>
+                setDnaSequence(
+                  event.target.value
                 )
               }
-              rows={10}
-              placeholder="Example: ATGCGTAAATGC..."
-              className="w-full resize-none rounded-2xl border border-slate-300 bg-slate-50 p-5 font-mono text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              placeholder="Example: ATGCGTAAATGCGGCTAGCTAG..."
+              className="sequence-input"
             />
 
-            <div className="mt-4 flex items-center justify-between text-sm">
+            <div className="input-footer">
 
-              <span className="text-slate-500">
-                {
-                  sequence.replace(
-                    /\s/g,
-                    ""
-                  ).length
-                }{" "}
-                bases
+              <span>
+                {dnaSequence
+                  .replace(/\s+/g, "")
+                  .length}{" "}
+                nucleotides
               </span>
 
               <button
-                onClick={
-                  clearSequence
-                }
-                className="font-semibold text-red-500 hover:text-red-700"
+                type="button"
+                className="primary-button"
+                onClick={analyzeSingleDNA}
+                disabled={singleLoading}
               >
-                Clear
+                {singleLoading
+                  ? "Analyzing..."
+                  : "Analyze Sequence →"}
               </button>
 
             </div>
 
+            {singleError && (
+              <div className="error-box">
+                {singleError}
+              </div>
+            )}
+
+          </div>
+
+          <div className="feature-panel">
+
+            <div className="feature-item">
+
+              <div className="feature-number">
+                01
+              </div>
+
+              <div>
+                <strong>
+                  Nucleotide Composition
+                </strong>
+
+                <p>
+                  A, T, G and C base counts,
+                  GC and AT percentages.
+                </p>
+              </div>
+
+            </div>
+
+            <div className="feature-item">
+
+              <div className="feature-number">
+                02
+              </div>
+
+              <div>
+                <strong>
+                  Sequence Transformation
+                </strong>
+
+                <p>
+                  Reverse complement and
+                  DNA-to-RNA transcription.
+                </p>
+              </div>
+
+            </div>
+
+            <div className="feature-item">
+
+              <div className="feature-number">
+                03
+              </div>
+
+              <div>
+                <strong>
+                  Protein Translation
+                </strong>
+
+                <p>
+                  Translate RNA codons into
+                  complete amino-acid names.
+                </p>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* =================================================
+            RESULTS
+        ================================================= */}
+
+        {singleResult && (
+
+          <div className="results-container">
+
+            <div className="results-title">
+
+              <div>
+                <div className="section-tag">
+                  ANALYSIS COMPLETE
+                </div>
+
+                <h3>
+                  Sequence Results
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                className="small-button"
+                onClick={exportSinglePDF}
+              >
+                Export PDF
+              </button>
+
+            </div>
+
+            {/* STATISTICS */}
+
+            <div className="stats-grid">
+
+              <div className="stat-box">
+                <span>
+                  Sequence Length
+                </span>
+
+                <strong>
+                  {singleResult.length}
+                </strong>
+
+                <small>
+                  base pairs
+                </small>
+              </div>
+
+              <div className="stat-box">
+                <StatIcon letter="A" />
+
+                <div>
+                  <span>
+                    Adenine
+                  </span>
+
+                  <strong>
+                    {singleResult.A}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="stat-box">
+                <StatIcon letter="T" />
+
+                <div>
+                  <span>
+                    Thymine
+                  </span>
+
+                  <strong>
+                    {singleResult.T}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="stat-box">
+                <StatIcon letter="G" />
+
+                <div>
+                  <span>
+                    Guanine
+                  </span>
+
+                  <strong>
+                    {singleResult.G}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="stat-box">
+                <StatIcon letter="C" />
+
+                <div>
+                  <span>
+                    Cytosine
+                  </span>
+
+                  <strong>
+                    {singleResult.C}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="stat-box highlight">
+                <span>
+                  GC Content
+                </span>
+
+                <strong>
+                  {singleResult.GC}%
+                </strong>
+              </div>
+
+              <div className="stat-box">
+                <span>
+                  AT Content
+                </span>
+
+                <strong>
+                  {singleResult.AT}%
+                </strong>
+              </div>
+
+            </div>
+
+            {/* TRANSFORMATIONS */}
+
+            <div className="result-grid">
+
+              <div className="result-card">
+
+                <div className="result-card-header">
+                  <span>
+                    DNA SEQUENCE
+                  </span>
+                </div>
+
+                <div className="sequence-display">
+                  {singleResult.sequence}
+                </div>
+
+              </div>
+
+              <div className="result-card">
+
+                <div className="result-card-header">
+                  <span>
+                    REVERSE COMPLEMENT
+                  </span>
+                </div>
+
+                <div className="sequence-display">
+                  {
+                    singleResult.reverse_complement
+                  }
+                </div>
+
+              </div>
+
+              <div className="result-card">
+
+                <div className="result-card-header">
+                  <span>
+                    DNA → RNA
+                  </span>
+                </div>
+
+                <div className="sequence-display">
+                  {singleResult.rna}
+                </div>
+
+              </div>
+
+              <div className="result-card">
+
+                <div className="result-card-header">
+                  <span>
+                    3-MER FREQUENCY
+                  </span>
+                </div>
+
+                <div className="mer-grid">
+
+                  {Object.entries(
+                    singleResult.three_mer_frequency ||
+                      {}
+                  ).map(
+                    ([mer, count]) => (
+                      <div
+                        key={mer}
+                        className="mer-item"
+                      >
+                        <strong>
+                          {mer}
+                        </strong>
+
+                        <span>
+                          {count}
+                        </span>
+                      </div>
+                    )
+                  )}
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* PROTEIN */}
+
+            <div className="protein-section">
+
+              <div className="result-card-header">
+                <span>
+                  RNA → PROTEIN
+                </span>
+              </div>
+
+              {singleResult.protein &&
+              singleResult.protein.length > 0 ? (
+
+                <div className="protein-table">
+
+                  <div className="protein-row protein-head">
+
+                    <span>
+                      Codon
+                    </span>
+
+                    <span>
+                      Amino Acid
+                    </span>
+
+                  </div>
+
+                  {singleResult.protein.map(
+                    (item, index) => (
+
+                      <div
+                        className="protein-row"
+                        key={`${item.codon}-${index}`}
+                      >
+
+                        <span className="codon">
+                          {item.codon}
+                        </span>
+
+                        <span>
+                          {item.aminoAcid}
+                        </span>
+
+                      </div>
+
+                    )
+                  )}
+
+                </div>
+
+              ) : (
+
+                <div className="empty-result">
+                  No complete codons available
+                  for translation.
+                </div>
+
+              )}
+
+            </div>
+
+          </div>
+
+        )}
+
+      </section>
+
+      {/* ===================================================
+          BATCH ANALYSIS
+      =================================================== */}
+
+      <section
+        id="batch-analysis"
+        className="content-section alternate-section"
+      >
+
+        <div className="section-intro">
+
+          <div className="section-index">
+            02
+          </div>
+
+          <div>
+            <div className="section-tag">
+              HIGH-THROUGHPUT ANALYSIS
+            </div>
+
+            <h2>
+              Batch DNA Analysis
+            </h2>
+
+            <p>
+              Upload a CSV containing multiple
+              DNA samples and process them in a
+              single analysis workflow.
+            </p>
+          </div>
+
+        </div>
+
+        <div className="upload-layout">
+
+          <div className="upload-panel">
+
+            <div className="upload-icon">
+              ↑
+            </div>
+
+            <h3>
+              Upload Sample Dataset
+            </h3>
+
+            <p>
+              Select a CSV file containing
+              sample names and DNA sequences.
+            </p>
+
+            <label className="large-upload-button">
+
+              Choose CSV File
+
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCSVUpload}
+              />
+
+            </label>
+
+            {csvFileName && (
+              <div className="selected-file">
+
+                <span className="file-check">
+                  ✓
+                </span>
+
+                <div>
+                  <strong>
+                    {csvFileName}
+                  </strong>
+
+                  <small>
+                    {csvRows.length} rows
+                    detected
+                  </small>
+                </div>
+
+              </div>
+            )}
+
+            <div className="format-note">
+
+              <strong>
+                Expected format
+              </strong>
+
+              <code>
+                sample_name,sequence
+              </code>
+
+            </div>
+
             <button
-              onClick={analyzeDNA}
-              disabled={loading}
-              className="mt-6 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 py-4 text-lg font-bold text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              className="primary-button full-button"
+              onClick={analyzeCSV}
+              disabled={
+                batchLoading ||
+                !csvRows.length
+              }
             >
+              {batchLoading
+                ? "Processing Samples..."
+                : "Analyze Batch →"}
+            </button>
 
-              {loading
-                ? "Analyzing DNA..."
-                : "Analyze Sequence"}
+            {batchError && (
+              <div className="error-box">
+                {batchError}
+              </div>
+            )}
 
+          </div>
+
+          <div className="batch-info">
+
+            <div className="info-card">
+
+              <span className="info-number">
+                01
+              </span>
+
+              <div>
+                <strong>
+                  Upload
+                </strong>
+
+                <p>
+                  Provide a CSV dataset
+                  containing multiple DNA
+                  sequences.
+                </p>
+              </div>
+
+            </div>
+
+            <div className="info-card">
+
+              <span className="info-number">
+                02
+              </span>
+
+              <div>
+                <strong>
+                  Process
+                </strong>
+
+                <p>
+                  Each sequence is validated
+                  and analyzed independently.
+                </p>
+              </div>
+
+            </div>
+
+            <div className="info-card">
+
+              <span className="info-number">
+                03
+              </span>
+
+              <div>
+                <strong>
+                  Compare
+                </strong>
+
+                <p>
+                  Use the resulting samples
+                  for reference comparison.
+                </p>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* BATCH TABLE */}
+
+        {batchResults.length > 0 && (
+
+          <div className="results-container">
+
+            <div className="results-title">
+
+              <div>
+                <div className="section-tag">
+                  BATCH COMPLETE
+                </div>
+
+                <h3>
+                  Sample Analysis Results
+                </h3>
+              </div>
+
+              <span className="result-count">
+                {batchResults.length}
+                {" "}
+                Samples
+              </span>
+
+            </div>
+
+            <div className="table-container">
+
+              <table>
+
+                <thead>
+
+                  <tr>
+
+                    <th>
+                      Sample
+                    </th>
+
+                    <th>
+                      Length
+                    </th>
+
+                    <th>
+                      A
+                    </th>
+
+                    <th>
+                      T
+                    </th>
+
+                    <th>
+                      G
+                    </th>
+
+                    <th>
+                      C
+                    </th>
+
+                    <th>
+                      GC Content
+                    </th>
+
+                    <th>
+                      AT Content
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+                <tbody>
+
+                  {batchResults.map(
+                    (result, index) => (
+
+                      <tr
+                        key={`${result.sample_name}-${index}`}
+                      >
+
+                        <td className="sample-name">
+                          {result.sample_name ||
+                            `Sample ${
+                              index + 1
+                            }`}
+                        </td>
+
+                        <td>
+                          {result.length} bp
+                        </td>
+
+                        <td>
+                          {result.A}
+                        </td>
+
+                        <td>
+                          {result.T}
+                        </td>
+
+                        <td>
+                          {result.G}
+                        </td>
+
+                        <td>
+                          {result.C}
+                        </td>
+
+                        <td>
+                          <strong>
+                            {result.GC}%
+                          </strong>
+                        </td>
+
+                        <td>
+                          {result.AT}%
+                        </td>
+
+                      </tr>
+                    )
+                  )}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          </div>
+
+        )}
+
+      </section>
+
+      {/* ===================================================
+          REFERENCE COMPARISON
+      =================================================== */}
+
+      <section
+        id="reference"
+        className="content-section"
+      >
+
+        <div className="section-intro">
+
+          <div className="section-index">
+            03
+          </div>
+
+          <div>
+
+            <div className="section-tag">
+              REFERENCE ANALYSIS
+            </div>
+
+            <h2>
+              Reference Comparison
+            </h2>
+
+            <p>
+              Compare every batch sample against
+              a reference DNA sequence and
+              identify MATCH or MISMATCH results.
+            </p>
+
+          </div>
+
+        </div>
+
+        <div className="reference-panel">
+
+          <div className="reference-tabs">
+
+            <button
+              type="button"
+              className={
+                referenceMode === "type"
+                  ? "reference-tab active"
+                  : "reference-tab"
+              }
+              onClick={() => {
+                setReferenceMode("type");
+                setReferenceError("");
+              }}
+            >
+              <span>
+                01
+              </span>
+
+              Type / Paste
+            </button>
+
+            <button
+              type="button"
+              className={
+                referenceMode === "upload"
+                  ? "reference-tab active"
+                  : "reference-tab"
+              }
+              onClick={() => {
+                setReferenceMode("upload");
+                setReferenceError("");
+              }}
+            >
+              <span>
+                02
+              </span>
+
+              Upload File
             </button>
 
           </div>
 
-          {/* TOOLS */}
+          {/* TYPE */}
 
-          <div className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-xl">
+          {referenceMode === "type" && (
 
-            <h3 className="mb-5 text-xl font-bold text-slate-900">
-              Analysis Tools
-            </h3>
+            <div className="reference-input">
 
-            {[
-              ["🧬", "Base Statistics"],
-              ["📊", "GC / AT Content"],
-              ["🔢", "3-mer Frequency"],
-              ["🔄", "Reverse Complement"],
-              ["🧪", "RNA Transcription"],
-              ["🧫", "Protein Translation"],
-            ].map(
-              ([icon, title]) => (
+              <label>
+                Reference DNA Sequence
+              </label>
 
-                <div
-                  key={title}
-                  className="mb-3 flex items-center gap-3 rounded-2xl border border-slate-200 p-4 transition hover:bg-indigo-50"
-                >
+              <textarea
+                value={
+                  referenceSequence
+                }
+                onChange={
+                  handleReferenceText
+                }
+                placeholder="Paste or type the reference DNA sequence..."
+              />
 
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-xl">
-                    {icon}
-                  </div>
+              <div className="reference-helper">
+
+                <span>
+                  Only A, T, G and C
+                </span>
+
+                <span>
+                  {referenceSequence
+                    .replace(/\s+/g, "")
+                    .length}{" "}
+                  bp
+                </span>
+
+              </div>
+
+            </div>
+
+          )}
+
+          {/* UPLOAD */}
+
+          {referenceMode === "upload" && (
+
+            <div className="reference-file-upload">
+
+              <label className="reference-upload-box">
+
+                <div className="reference-upload-icon">
+                  ↑
+                </div>
+
+                <strong>
+                  Upload Reference File
+                </strong>
+
+                <span>
+                  CSV, TXT, FASTA or FA
+                </span>
+
+                <input
+                  type="file"
+                  accept=".csv,.txt,.fasta,.fa"
+                  onChange={
+                    handleReferenceUpload
+                  }
+                />
+
+              </label>
+
+              {referenceFileName && (
+                <div className="selected-file">
+
+                  <span className="file-check">
+                    ✓
+                  </span>
 
                   <div>
+                    <strong>
+                      {referenceFileName}
+                    </strong>
 
-                    <h4 className="font-semibold text-slate-800">
-                      {title}
-                    </h4>
-
-                    <p className="text-sm text-slate-500">
-                      Sequence analysis
-                    </p>
-
+                    <small>
+                      Reference file loaded
+                    </small>
                   </div>
 
                 </div>
+              )}
 
-              )
+            </div>
+
+          )}
+
+          {referenceError && (
+            <div className="error-box">
+              {referenceError}
+            </div>
+          )}
+
+          {/* PREVIEW */}
+
+          {referenceSequence && (
+
+            <div className="reference-preview">
+
+              <div className="preview-header">
+
+                <div>
+                  <span>
+                    REFERENCE SEQUENCE
+                  </span>
+
+                  <h3>
+                    Reference Ready
+                  </h3>
+                </div>
+
+                <div className="reference-length">
+                  {referenceSequence.length}
+                  {" "}
+                  bp
+                </div>
+
+              </div>
+
+              <div className="reference-sequence">
+                {referenceSequence}
+              </div>
+
+              <div className="reference-meta">
+
+                <span>
+                  Validation:{" "}
+                  <strong>
+                    Valid DNA
+                  </strong>
+                </span>
+
+                <span>
+                  Match threshold:{" "}
+                  <strong>
+                    90%
+                  </strong>
+                </span>
+
+              </div>
+
+            </div>
+
+          )}
+
+          <div className="reference-action">
+
+            <button
+              type="button"
+              className="primary-button"
+              onClick={compareReference}
+              disabled={
+                referenceLoading ||
+                !referenceSequence ||
+                !batchResults.length
+              }
+            >
+              {referenceLoading
+                ? "Comparing Samples..."
+                : "Compare With Reference →"}
+            </button>
+
+            {!batchResults.length && (
+              <span>
+                Complete batch analysis
+                before comparison.
+              </span>
             )}
 
           </div>
 
         </div>
 
-      </section>
+        {/* COMPARISON RESULTS */}
 
-      {/* SINGLE RESULT */}
+        {referenceSummary && (
 
-      {result && (
+          <div className="comparison-results">
 
-        <section className="mx-auto max-w-7xl px-6 pt-12">
-
-          <h2 className="mb-6 text-3xl font-black text-slate-900">
-            Analysis Results
-          </h2>
-
-          {result.error ? (
-
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 font-semibold text-red-700">
-              ⚠ {result.error}
-            </div>
-
-          ) : (
-
-            <>
-
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
-
-                {[
-                  ["Length", result.length],
-                  [
-                    "A",
-                    result.num_A ??
-                      result.A,
-                  ],
-                  [
-                    "T",
-                    result.num_T ??
-                      result.T,
-                  ],
-                  [
-                    "G",
-                    result.num_G ??
-                      result.G,
-                  ],
-                  [
-                    "C",
-                    result.num_C ??
-                      result.C,
-                  ],
-                  [
-                    "GC %",
-                    result.gc_content ??
-                      result.GC,
-                  ],
-                  [
-                    "AT %",
-                    result.at_content ??
-                      result.AT,
-                  ],
-                ].map(
-                  ([label, value]) => (
-
-                    <div
-                      key={String(
-                        label
-                      )}
-                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                    >
-
-                      <p className="text-sm text-slate-500">
-                        {label}
-                      </p>
-
-                      <h3 className="mt-2 text-3xl font-black text-slate-900">
-                        {value}
-                      </h3>
-
-                    </div>
-
-                  )
-                )}
-
-              </div>
-
-              <ResultCard
-                title="Reverse Complement"
-                value={
-                  result.reverseComplement ||
-                  "—"
-                }
-                icon="🔄"
-              />
-
-              <ResultCard
-                title="RNA Transcription"
-                value={
-                  result.RNA ||
-                  "—"
-                }
-                icon="🧪"
-              />
-
-              <ResultCard
-                title="Protein Translation"
-                value={
-                  result.protein ||
-                  "—"
-                }
-                icon="🧫"
-              />
-
-            </>
-
-          )}
-
-        </section>
-
-      )}
-
-      {/* CSV SECTION */}
-
-      <section
-        id="batch"
-        className="mx-auto max-w-7xl px-6 py-16"
-      >
-
-        <div className="rounded-[30px] border border-slate-200 bg-white p-8 shadow-xl">
-
-          <div className="mb-8">
-
-            <div className="mb-3 inline-flex rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700">
-              Batch Processing
-            </div>
-
-            <h2 className="text-3xl font-black text-slate-900">
-              CSV DNA Analysis
-            </h2>
-
-            <p className="mt-2 text-slate-500">
-              Upload multiple DNA samples
-              for batch analysis.
-            </p>
-
-          </div>
-
-          {/* CSV FORMAT */}
-
-          <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50 p-5">
-
-            <h3 className="font-bold text-blue-900">
-              CSV Format
-            </h3>
-
-            <p className="mt-2 text-sm text-blue-800">
-              Your CSV should contain a
-              <b> sequence </b>
-              column. You can optionally
-              include a
-              <b> sampleID </b>
-              column.
-            </p>
-
-            <pre className="mt-4 overflow-x-auto rounded-xl bg-white p-4 text-sm text-slate-700">
-{`sampleID,sequence
-Sample1,ATGCGTAAATGC
-Sample2,ATGCCCGGTAAA
-Sample3,ATGTTTGGCCAA`}
-            </pre>
-
-          </div>
-
-          {/* UPLOAD */}
-
-          <div className="rounded-3xl border-2 border-dashed border-indigo-300 bg-indigo-50 p-10 text-center">
-
-            <div className="mb-4 text-5xl">
-              📁
-            </div>
-
-            <h3 className="text-lg font-bold text-slate-800">
-              Upload DNA CSV
-            </h3>
-
-            <p className="mb-6 mt-2 text-sm text-slate-500">
-              CSV with sampleID and
-              sequence columns
-            </p>
-
-            <label className="inline-flex cursor-pointer rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:scale-105">
-
-              Choose CSV File
-
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                onChange={
-                  handleCSVUpload
-                }
-                className="hidden"
-              />
-
-            </label>
-
-          </div>
-
-          {/* FILE INFO */}
-
-          {csvFileName && (
-
-            <div className="mt-5 flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="comparison-header">
 
               <div>
 
-                <p className="font-semibold text-emerald-800">
-                  ✓ CSV Uploaded
-                </p>
+                <div className="section-tag">
+                  COMPARISON COMPLETE
+                </div>
 
-                <p className="text-sm text-emerald-700">
-                  {csvFileName}
-                </p>
+                <h3>
+                  Reference Comparison Results
+                </h3>
 
               </div>
 
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700">
-                {csvData.length} samples
-              </span>
+              <button
+                type="button"
+                className="small-button"
+                onClick={exportBatchPDF}
+              >
+                Export PDF
+              </button>
 
             </div>
 
-          )}
+            <div className="comparison-stats">
 
-          {/* ANALYZE BUTTON */}
+              <div>
+                <span>
+                  Total Samples
+                </span>
 
-          {csvData.length > 0 && (
-
-            <button
-              onClick={analyzeCSV}
-              disabled={csvAnalyzing}
-              className="mt-6 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-7 py-4 font-bold text-white shadow-lg transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-
-              {csvAnalyzing
-                ? "Analyzing Samples..."
-                : `Analyze ${csvData.length} Samples`}
-
-            </button>
-
-          )}
-
-          {/* CSV RESULTS */}
-
-          {csvResults.length > 0 && (
-
-            <div className="mt-10">
-
-              <div className="mb-5">
-
-                <h3 className="text-2xl font-black text-slate-900">
-                  CSV Analysis Results
-                </h3>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Computed features for each
-                  DNA sample.
-                </p>
-
+                <strong>
+                  {
+                    referenceSummary.total_samples
+                  }
+                </strong>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <div className="match-stat">
+                <span>
+                  MATCH
+                </span>
 
-                <table className="min-w-[1500px] w-full border-collapse">
+                <strong>
+                  {
+                    referenceSummary.matched
+                  }
+                </strong>
+              </div>
 
-                  <thead>
+              <div className="mismatch-stat">
+                <span>
+                  MISMATCH
+                </span>
 
-                    <tr className="bg-slate-900 text-left text-sm text-white">
+                <strong>
+                  {
+                    referenceSummary.mismatched
+                  }
+                </strong>
+              </div>
 
-                      <th className="whitespace-nowrap px-4 py-4">
-                        Sample ID
-                      </th>
+            </div>
 
-                      <th className="whitespace-nowrap px-4 py-4">
-                        Sequence
-                      </th>
+            <div className="table-container">
 
-                      <th className="whitespace-nowrap px-4 py-4">
-                        GC Content (%)
-                      </th>
+              <table>
 
-                      <th className="whitespace-nowrap px-4 py-4">
-                        AT Content (%)
-                      </th>
+                <thead>
 
-                      <th className="whitespace-nowrap px-4 py-4">
-                        Sequence Length
-                      </th>
+                  <tr>
 
-                      <th className="whitespace-nowrap px-4 py-4">
-                        Num_A
-                      </th>
+                    <th>
+                      Sample
+                    </th>
 
-                      <th className="whitespace-nowrap px-4 py-4">
-                        Num_T
-                      </th>
+                    <th>
+                      Length
+                    </th>
 
-                      <th className="whitespace-nowrap px-4 py-4">
-                        Num_C
-                      </th>
+                    <th>
+                      GC %
+                    </th>
 
-                      <th className="whitespace-nowrap px-4 py-4">
-                        Num_G
-                      </th>
+                    <th>
+                      Reference Similarity
+                    </th>
 
-                      <th className="whitespace-nowrap px-4 py-4">
-                        K-mer 3 Frequency
-                      </th>
+                    <th>
+                      Classification
+                    </th>
 
-                    </tr>
+                  </tr>
 
-                  </thead>
+                </thead>
 
-                  <tbody>
+                <tbody>
 
-                    {csvResults.map(
-                      (row, index) => (
+                  {referenceResults.map(
+                    (result, index) => {
+
+                      const isMatch =
+                        result.reference_status ===
+                        "MATCH";
+
+                      return (
 
                         <tr
-                          key={index}
-                          className="border-t border-slate-200 hover:bg-indigo-50"
+                          key={`${result.sample_name}-${index}`}
                         >
 
-                          <td className="whitespace-nowrap px-4 py-4 font-bold text-blue-700">
-                            {row.sampleID}
+                          <td className="sample-name">
+                            {result.sample_name ||
+                              `Sample ${
+                                index + 1
+                              }`}
                           </td>
 
-                          <td className="max-w-[250px] px-4 py-4">
+                          <td>
+                            {result.length} bp
+                          </td>
 
-                            <div className="max-h-24 overflow-auto rounded-lg bg-slate-50 p-3 font-mono text-xs text-slate-700">
-                              {row.sequence ||
-                                "—"}
+                          <td>
+                            {result.GC}%
+                          </td>
+
+                          <td>
+
+                            <div className="similarity-cell">
+
+                              <strong>
+                                {
+                                  result.reference_similarity ??
+                                  0
+                                }%
+                              </strong>
+
+                              <div className="similarity-bar">
+
+                                <span
+                                  style={{
+                                    width: `${Math.min(
+                                      result.reference_similarity ||
+                                        0,
+                                      100
+                                    )}%`,
+                                  }}
+                                />
+
+                              </div>
+
                             </div>
 
                           </td>
 
-                          <td className="px-4 py-4 font-bold text-indigo-700">
-                            {row.GC !==
-                            "—"
-                              ? `${row.GC}%`
-                              : "—"}
-                          </td>
+                          <td>
 
-                          <td className="px-4 py-4 font-bold text-violet-700">
-                            {row.AT !==
-                            "—"
-                              ? `${row.AT}%`
-                              : "—"}
-                          </td>
-
-                          <td className="px-4 py-4 font-bold text-slate-800">
-                            {row.length}
-                          </td>
-
-                          <td className="px-4 py-4 font-semibold">
-                            {row.num_A}
-                          </td>
-
-                          <td className="px-4 py-4 font-semibold">
-                            {row.num_T}
-                          </td>
-
-                          <td className="px-4 py-4 font-semibold">
-                            {row.num_C}
-                          </td>
-
-                          <td className="px-4 py-4 font-semibold">
-                            {row.num_G}
-                          </td>
-
-                          <td className="max-w-[400px] px-4 py-4">
-
-                            <div className="max-h-28 overflow-auto rounded-lg bg-slate-50 p-3 font-mono text-xs leading-6 text-slate-700">
-                              {formatKmer(
-                                row.kmer_3_frequency
-                              )}
-                            </div>
+                            <span
+                              className={
+                                isMatch
+                                  ? "match-badge"
+                                  : "mismatch-badge"
+                              }
+                            >
+                              {isMatch
+                                ? "✓ MATCH"
+                                : "× MISMATCH"}
+                            </span>
 
                           </td>
 
                         </tr>
 
-                      )
-                    )}
+                      );
+                    }
+                  )}
 
-                  </tbody>
+                </tbody>
 
-                </table>
-
-              </div>
+              </table>
 
             </div>
 
-          )}
+            <div className="scientific-note">
 
-        </div>
+              <strong>
+                Method note
+              </strong>
+
+              <p>
+                Similarity is calculated using
+                positional nucleotide comparison
+                between each sample and the
+                reference sequence. A similarity
+                of 90% or higher is classified as
+                MATCH. This is a computational
+                screening metric and not a
+                clinically validated purity test.
+              </p>
+
+            </div>
+
+          </div>
+
+        )}
 
       </section>
 
-      {/* ABOUT */}
+      {/* ===================================================
+          REPORTS
+      =================================================== */}
 
       <section
-        id="about"
-        className="mx-auto max-w-7xl px-6 pb-16"
+        id="reports"
+        className="content-section report-section"
       >
 
-        <div className="rounded-[30px] border border-indigo-100 bg-indigo-50 p-8">
+        <div className="section-intro">
 
-          <h2 className="text-2xl font-black text-slate-900">
-            About DNA Analyzer
-          </h2>
+          <div className="section-index">
+            04
+          </div>
 
-          <p className="mt-3 max-w-4xl leading-7 text-slate-600">
+          <div>
 
-            This bioinformatics platform
-            performs DNA sequence analysis
-            including nucleotide composition,
-            GC content, AT content, sequence
-            length and 3-mer frequency
-            analysis.
+            <div className="section-tag">
+              DOCUMENTATION
+            </div>
 
-            <br />
-            <br />
+            <h2>
+              Analysis Reports
+            </h2>
 
-            Future versions can include
-            reference sequence comparison,
-            mutation detection and PDF
-            report generation.
+            <p>
+              Generate PDF reports from your
+              sequence and reference analyis.
+            </p>
 
-          </p>
+          </div>
+
+        </div>
+
+        <div className="report-grid">
+
+          <div className="report-card">
+
+            <div className="report-icon">
+              PDF
+            </div>
+
+            <div>
+
+              <h3>
+                Single Sequence Report
+              </h3>
+
+              <p>
+                Export sequence composition,
+                reverse complement, RNA
+                transcription and protein
+                translation.
+              </p>
+
+              <button
+                type="button"
+                className="outline-button"
+                onClick={
+                  exportSinglePDF
+                }
+                disabled={!singleResult}
+              >
+                Generate Report →
+              </button>
+
+            </div>
+
+          </div>
+
+          <div className="report-card">
+
+            <div className="report-icon">
+              PDF
+            </div>
+
+            <div>
+
+              <h3>
+                Batch Comparison Report
+              </h3>
+
+              <p>
+                Export sample results,
+                reference similarity and
+                MATCH/MISMATCH classifications.
+              </p>
+
+              <button
+                type="button"
+                className="outline-button"
+                onClick={
+                  exportBatchPDF
+                }
+                disabled={
+                  !referenceResults.length
+                }
+              >
+                Generate Report →
+              </button>
+
+            </div>
+
+          </div>
 
         </div>
 
       </section>
 
-      {/* FOOTER */}
+      {/* ===================================================
+          FOOTER
+      =================================================== */}
 
-      <footer className="bg-slate-950 py-8 text-white">
+      <footer className="footer">
 
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-3 px-6 text-sm text-slate-400 md:flex-row">
+        <div className="footer-brand">
 
-          <span>
-            🧬 DNA Analyzer
-          </span>
+          <div className="brand-mark">
+            <span>A</span>
+            <span>T</span>
+            <span>G</span>
+            <span>C</span>
+          </div>
 
-          <span>
-            Next.js • Bioinformatics
-          </span>
+          <div>
+
+            <strong>
+              DNA Analyzer
+            </strong>
+
+            <span>
+              Computational Biology
+            </span>
+
+          </div>
 
         </div>
+
+        <p>
+          DNA sequence analysis platform
+          for computational biology and
+          bioinformatics workflows.
+        </p>
+
+        <span className="footer-copy">
+          Bioinformatics • Genomics •
+          Computational Biology
+        </span>
 
       </footer>
 
     </main>
-  );
-}
-
-// =====================================================
-// RESULT CARD
-// =====================================================
-
-function ResultCard({
-  title,
-  value,
-  icon,
-}: {
-  title: string;
-  value: string;
-  icon: string;
-}) {
-  return (
-
-    <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-
-      <div className="mb-4 flex items-center gap-3">
-
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-lg">
-          {icon}
-        </div>
-
-        <h3 className="font-bold text-slate-900">
-          {title}
-        </h3>
-
-      </div>
-
-      <div className="max-h-48 overflow-auto rounded-2xl bg-slate-50 p-4">
-
-        <p className="break-all font-mono text-sm leading-7 text-slate-700">
-          {value}
-        </p>
-
-      </div>
-
-    </div>
-
   );
 }
