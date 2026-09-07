@@ -47,19 +47,97 @@ type CSVRow = {
   [key: string]: string | undefined;
 };
 
-type AnalysisResponse = {
-  success: boolean;
-  results: DNAResult[];
-  reference?: string | null;
-  threshold?: number;
+/* =========================================================
+   CODON TABLE
+========================================================= */
 
-  summary?: {
-    total_samples: number;
-    matched: number;
-    mismatched: number;
-  };
+const CODON_TABLE: Record<string, string> = {
+  UUU: "Phenylalanine",
+  UUC: "Phenylalanine",
+  UUA: "Leucine",
+  UUG: "Leucine",
 
-  error?: string;
+  UCU: "Serine",
+  UCC: "Serine",
+  UCA: "Serine",
+  UCG: "Serine",
+
+  UAU: "Tyrosine",
+  UAC: "Tyrosine",
+
+  UAA: "STOP",
+  UAG: "STOP",
+
+  UGU: "Cysteine",
+  UGC: "Cysteine",
+
+  UGA: "STOP",
+  UGG: "Tryptophan",
+
+  CUU: "Leucine",
+  CUC: "Leucine",
+  CUA: "Leucine",
+  CUG: "Leucine",
+
+  CCU: "Proline",
+  CCC: "Proline",
+  CCA: "Proline",
+  CCG: "Proline",
+
+  CAU: "Histidine",
+  CAC: "Histidine",
+
+  CAA: "Glutamine",
+  CAG: "Glutamine",
+
+  CGU: "Arginine",
+  CGC: "Arginine",
+  CGA: "Arginine",
+  CGG: "Arginine",
+
+  AUU: "Isoleucine",
+  AUC: "Isoleucine",
+  AUA: "Isoleucine",
+
+  AUG: "Methionine",
+
+  ACU: "Threonine",
+  ACC: "Threonine",
+  ACA: "Threonine",
+  ACG: "Threonine",
+
+  AAU: "Asparagine",
+  AAC: "Asparagine",
+
+  AAA: "Lysine",
+  AAG: "Lysine",
+
+  AGU: "Serine",
+  AGC: "Serine",
+
+  AGA: "Arginine",
+  AGG: "Arginine",
+
+  GUU: "Valine",
+  GUC: "Valine",
+  GUA: "Valine",
+  GUG: "Valine",
+
+  GCU: "Alanine",
+  GCC: "Alanine",
+  GCA: "Alanine",
+  GCG: "Alanine",
+
+  GAU: "Aspartic Acid",
+  GAC: "Aspartic Acid",
+
+  GAA: "Glutamic Acid",
+  GAG: "Glutamic Acid",
+
+  GGU: "Glycine",
+  GGC: "Glycine",
+  GGA: "Glycine",
+  GGG: "Glycine",
 };
 
 /* =========================================================
@@ -74,7 +152,6 @@ function DNAHelix() {
         className="dna-svg"
         aria-label="DNA double helix illustration"
       >
-        {/* Left strand */}
         <path
           d="M170 20 C360 100 360 180 170 260 C-20 340 -20 420 170 500"
           fill="none"
@@ -83,7 +160,6 @@ function DNAHelix() {
           strokeLinecap="round"
         />
 
-        {/* Right strand */}
         <path
           d="M350 20 C160 100 160 180 350 260 C540 340 540 420 350 500"
           fill="none"
@@ -92,7 +168,6 @@ function DNAHelix() {
           strokeLinecap="round"
         />
 
-        {/* Base pairs */}
         <line x1="210" y1="45" x2="310" y2="45" />
         <line x1="260" y1="85" x2="260" y2="85" />
 
@@ -130,7 +205,6 @@ function DNAHelix() {
           <line x1="220" y1="460" x2="300" y2="460" />
         </g>
 
-        {/* Nucleotide circles */}
         <g fill="currentColor">
           <circle cx="170" cy="20" r="8" />
           <circle cx="350" cy="20" r="8" />
@@ -168,6 +242,253 @@ function StatIcon({ letter }: { letter: string }) {
 }
 
 /* =========================================================
+   CLEAN DNA
+========================================================= */
+
+function cleanDNA(sequence: string): string {
+  return sequence
+    .toUpperCase()
+    .replace(/\s+/g, "");
+}
+
+/* =========================================================
+   VALIDATE DNA
+========================================================= */
+
+function isValidDNA(sequence: string): boolean {
+  return sequence.length > 0 && /^[ATGC]+$/.test(sequence);
+}
+
+/* =========================================================
+   REVERSE COMPLEMENT
+========================================================= */
+
+function reverseComplement(sequence: string): string {
+  const complement: Record<string, string> = {
+    A: "T",
+    T: "A",
+    G: "C",
+    C: "G",
+  };
+
+  return sequence
+    .split("")
+    .reverse()
+    .map((base) => complement[base])
+    .join("");
+}
+
+/* =========================================================
+   DNA → RNA
+========================================================= */
+
+function transcribeDNA(sequence: string): string {
+  return sequence.replace(/T/g, "U");
+}
+
+/* =========================================================
+   RNA → PROTEIN
+========================================================= */
+
+function translateRNA(rna: string): ProteinItem[] {
+  const protein: ProteinItem[] = [];
+
+  for (let i = 0; i + 2 < rna.length; i += 3) {
+    const codon = rna.substring(i, i + 3);
+
+    const aminoAcid =
+      CODON_TABLE[codon] || "Unknown";
+
+    protein.push({
+      codon,
+      aminoAcid,
+    });
+  }
+
+  return protein;
+}
+
+/* =========================================================
+   3-MER FREQUENCY
+========================================================= */
+
+function calculate3MerFrequency(
+  sequence: string
+): Record<string, number> {
+  const frequency: Record<string, number> = {};
+
+  for (let i = 0; i + 2 < sequence.length; i++) {
+    const mer = sequence.substring(i, i + 3);
+
+    frequency[mer] =
+      (frequency[mer] || 0) + 1;
+  }
+
+  return frequency;
+}
+
+/* =========================================================
+   ANALYZE DNA LOCALLY
+========================================================= */
+
+function analyzeSequence(
+  sequence: string,
+  sampleName = "DNA Sample"
+): DNAResult {
+  const cleanSequence = cleanDNA(sequence);
+
+  const A = (
+    cleanSequence.match(/A/g) || []
+  ).length;
+
+  const T = (
+    cleanSequence.match(/T/g) || []
+  ).length;
+
+  const G = (
+    cleanSequence.match(/G/g) || []
+  ).length;
+
+  const C = (
+    cleanSequence.match(/C/g) || []
+  ).length;
+
+  const length = cleanSequence.length;
+
+  const GC =
+    length > 0
+      ? Number((((G + C) / length) * 100).toFixed(2))
+      : 0;
+
+  const AT =
+    length > 0
+      ? Number((((A + T) / length) * 100).toFixed(2))
+      : 0;
+
+  const rna =
+    transcribeDNA(cleanSequence);
+
+  const protein =
+    translateRNA(rna);
+
+  return {
+    sample_name: sampleName,
+    sequence: cleanSequence,
+    length,
+
+    A,
+    T,
+    G,
+    C,
+
+    GC,
+    AT,
+
+    reverse_complement:
+      reverseComplement(cleanSequence),
+
+    rna,
+
+    protein,
+
+    three_mer_frequency:
+      calculate3MerFrequency(
+        cleanSequence
+      ),
+  };
+}
+
+/* =========================================================
+   REFERENCE SIMILARITY
+========================================================= */
+
+function calculateReferenceSimilarity(
+  sample: string,
+  reference: string
+): number {
+  const sampleDNA = cleanDNA(sample);
+  const referenceDNA = cleanDNA(reference);
+
+  if (
+    !sampleDNA.length ||
+    !referenceDNA.length
+  ) {
+    return 0;
+  }
+
+  const comparisonLength = Math.min(
+    sampleDNA.length,
+    referenceDNA.length
+  );
+
+  if (comparisonLength === 0) {
+    return 0;
+  }
+
+  let matches = 0;
+
+  for (
+    let i = 0;
+    i < comparisonLength;
+    i++
+  ) {
+    if (
+      sampleDNA[i] ===
+      referenceDNA[i]
+    ) {
+      matches++;
+    }
+  }
+
+  const positionalSimilarity =
+    (matches / comparisonLength) * 100;
+
+  /*
+   * Penalize sequences that have
+   * different lengths.
+   */
+
+  const lengthDifference =
+    Math.abs(
+      sampleDNA.length -
+        referenceDNA.length
+    );
+
+  const maxLength = Math.max(
+    sampleDNA.length,
+    referenceDNA.length
+  );
+
+  const lengthSimilarity =
+    maxLength > 0
+      ? Math.max(
+          0,
+          100 -
+            (lengthDifference /
+              maxLength) *
+              100
+        )
+      : 0;
+
+  /*
+   * Final similarity combines
+   * positional similarity and
+   * length similarity.
+   */
+
+  const similarity =
+    positionalSimilarity * 0.9 +
+    lengthSimilarity * 0.1;
+
+  return Number(
+    Math.min(
+      100,
+      Math.max(0, similarity)
+    ).toFixed(2)
+  );
+}
+
+/* =========================================================
    MAIN
 ========================================================= */
 
@@ -176,12 +497,14 @@ export default function Home() {
      SINGLE ANALYSIS
   ======================================================= */
 
-  const [dnaSequence, setDnaSequence] = useState("");
+  const [dnaSequence, setDnaSequence] =
+    useState("");
 
   const [singleResult, setSingleResult] =
     useState<DNAResult | null>(null);
 
-  const [singleError, setSingleError] = useState("");
+  const [singleError, setSingleError] =
+    useState("");
 
   const [singleLoading, setSingleLoading] =
     useState(false);
@@ -225,7 +548,11 @@ export default function Home() {
     useState<DNAResult[]>([]);
 
   const [referenceSummary, setReferenceSummary] =
-    useState<AnalysisResponse["summary"]>();
+    useState<{
+      total_samples: number;
+      matched: number;
+      mismatched: number;
+    }>();
 
   const [referenceLoading, setReferenceLoading] =
     useState(false);
@@ -238,9 +565,8 @@ export default function Home() {
     setSingleError("");
     setSingleResult(null);
 
-    const sequence = dnaSequence
-      .toUpperCase()
-      .replace(/\s+/g, "");
+    const sequence =
+      cleanDNA(dnaSequence);
 
     if (!sequence) {
       setSingleError(
@@ -249,7 +575,7 @@ export default function Home() {
       return;
     }
 
-    if (!/^[ATGC]+$/.test(sequence)) {
+    if (!isValidDNA(sequence)) {
       setSingleError(
         "Invalid sequence. Only A, T, G and C are allowed."
       );
@@ -259,42 +585,31 @@ export default function Home() {
     try {
       setSingleLoading(true);
 
-      const response = await fetch(
-        "/api/analyze",
-        {
-          method: "POST",
+      /*
+       * IMPORTANT:
+       * Analysis is now performed locally.
+       * No /api/analyze.
+       * No FastAPI.
+       * No localhost.
+       */
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body: JSON.stringify({
-            samples: [
-              {
-                sample_name:
-                  "Single DNA Sample",
-
-                sequence,
-              },
-            ],
-          }),
-        }
-      );
-
-      const data: AnalysisResponse =
-        await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.error ||
-            "Analysis failed."
+      const result =
+        analyzeSequence(
+          sequence,
+          "Single DNA Sample"
         );
-      }
 
-      setSingleResult(
-        data.results[0]
+      /*
+       * Small delay gives the UI
+       * the same analyzing behaviour
+       * without requiring a server.
+       */
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, 150)
       );
+
+      setSingleResult(result);
     } catch (error) {
       setSingleError(
         error instanceof Error
@@ -331,7 +646,6 @@ export default function Home() {
 
     Papa.parse<CSVRow>(file, {
       header: true,
-
       skipEmptyLines: true,
 
       complete: (results) => {
@@ -359,6 +673,7 @@ export default function Home() {
 
   async function analyzeCSV() {
     setBatchError("");
+    setBatchResults([]);
 
     if (!csvRows.length) {
       setBatchError(
@@ -387,28 +702,48 @@ export default function Home() {
       return;
     }
 
-    const samples = csvRows
-      .map((row, index) => ({
-        sample_name:
+    const samples: {
+      sample_name: string;
+      sequence: string;
+    }[] = [];
+
+    const invalidSamples: string[] = [];
+
+    csvRows.forEach(
+      (row, index) => {
+        const sampleName =
           row.sample_name ||
           row.sampleID ||
           row.sample ||
-          `Sample ${index + 1}`,
+          `Sample ${index + 1}`;
 
-        sequence:
-          row[sequenceKey]
-            ?.toUpperCase()
-            .replace(/\s+/g, "") ||
-          "",
-      }))
-      .filter(
-        (sample) =>
-          sample.sequence.length > 0
-      );
+        const sequence =
+          cleanDNA(
+            row[sequenceKey] || ""
+          );
+
+        if (!sequence) {
+          return;
+        }
+
+        if (!isValidDNA(sequence)) {
+          invalidSamples.push(
+            sampleName
+          );
+          return;
+        }
+
+        samples.push({
+          sample_name:
+            sampleName,
+          sequence,
+        });
+      }
+    );
 
     if (!samples.length) {
       setBatchError(
-        "No DNA sequences were found."
+        "No valid DNA sequences were found in the CSV file."
       );
       return;
     }
@@ -416,35 +751,27 @@ export default function Home() {
     try {
       setBatchLoading(true);
 
-      const response = await fetch(
-        "/api/analyze",
-        {
-          method: "POST",
+      const results =
+        samples.map((sample) =>
+          analyzeSequence(
+            sample.sequence,
+            sample.sample_name
+          )
+        );
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body: JSON.stringify({
-            samples,
-          }),
-        }
+      await new Promise((resolve) =>
+        setTimeout(resolve, 250)
       );
 
-      const data: AnalysisResponse =
-        await response.json();
+      setBatchResults(results);
 
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.error ||
-            "Batch analysis failed."
+      if (invalidSamples.length > 0) {
+        setBatchError(
+          `${invalidSamples.length} invalid sample(s) were skipped: ${invalidSamples.join(
+            ", "
+          )}`
         );
       }
-
-      setBatchResults(
-        data.results
-      );
     } catch (error) {
       setBatchError(
         error instanceof Error
@@ -497,7 +824,9 @@ export default function Home() {
         .pop()
         ?.toLowerCase();
 
-    /* CSV */
+    /* =====================================================
+       CSV
+    ===================================================== */
 
     if (extension === "csv") {
       Papa.parse<CSVRow>(file, {
@@ -550,11 +879,11 @@ export default function Home() {
           }
 
           const sequence =
-            row[sequenceKey]!
-              .toUpperCase()
-              .replace(/\s+/g, "");
+            cleanDNA(
+              row[sequenceKey] || ""
+            );
 
-          if (!/^[ATGC]+$/.test(sequence)) {
+          if (!isValidDNA(sequence)) {
             setReferenceError(
               "Reference contains invalid DNA characters."
             );
@@ -576,7 +905,9 @@ export default function Home() {
       return;
     }
 
-    /* TXT / FASTA / FA */
+    /* =====================================================
+       TXT / FASTA / FA
+    ===================================================== */
 
     if (
       extension === "txt" ||
@@ -611,7 +942,7 @@ export default function Home() {
           return;
         }
 
-        if (!/^[ATGC]+$/.test(sequence)) {
+        if (!isValidDNA(sequence)) {
           setReferenceError(
             "Reference contains invalid DNA characters."
           );
@@ -654,11 +985,9 @@ export default function Home() {
     }
 
     const reference =
-      referenceSequence
-        .toUpperCase()
-        .replace(/\s+/g, "");
+      cleanDNA(referenceSequence);
 
-    if (!/^[ATGC]+$/.test(reference)) {
+    if (!isValidDNA(reference)) {
       setReferenceError(
         "Reference sequence can contain only A, T, G and C."
       );
@@ -675,52 +1004,55 @@ export default function Home() {
     try {
       setReferenceLoading(true);
 
-      const samples =
+      const results =
         batchResults.map(
-          (result, index) => ({
-            sample_name:
-              result.sample_name ||
-              `Sample ${index + 1}`,
+          (result) => {
+            const similarity =
+              calculateReferenceSimilarity(
+                result.sequence || "",
+                reference
+              );
 
-            sequence:
-              result.sequence || "",
-          })
+            return {
+              ...result,
+
+              reference_similarity:
+                similarity,
+
+              reference_status:
+                similarity >= 90
+                  ? "MATCH"
+                  : "MISMATCH",
+            };
+          }
         );
 
-      const response = await fetch(
-        "/api/analyze",
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body: JSON.stringify({
-            samples,
-            reference,
-          }),
-        }
+      await new Promise((resolve) =>
+        setTimeout(resolve, 250)
       );
 
-      const data: AnalysisResponse =
-        await response.json();
+      const matched =
+        results.filter(
+          (result) =>
+            result.reference_status ===
+            "MATCH"
+        ).length;
 
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.error ||
-            "Reference comparison failed."
-        );
-      }
+      const mismatched =
+        results.length - matched;
 
       setReferenceResults(
-        data.results
+        results
       );
 
-      setReferenceSummary(
-        data.summary
-      );
+      setReferenceSummary({
+        total_samples:
+          results.length,
+
+        matched,
+
+        mismatched,
+      });
     } catch (error) {
       setReferenceError(
         error instanceof Error
@@ -734,14 +1066,6 @@ export default function Home() {
 
   /* =======================================================
      PDF SINGLE
-     
-     FIX:
-     Long DNA/RNA sequences are now:
-     - Split into 60 bases per line
-     - Numbered by starting position
-     - Kept in monospaced font
-     - Automatically moved to new pages
-     - Prevented from overlapping
   ======================================================= */
 
   function exportSinglePDF() {
@@ -762,10 +1086,6 @@ export default function Home() {
 
     let y = topMargin;
 
-    /* =====================================================
-       PAGE CONTROL
-    ===================================================== */
-
     function addPageIfNeeded(
       requiredHeight: number
     ) {
@@ -777,10 +1097,6 @@ export default function Home() {
         y = topMargin;
       }
     }
-
-    /* =====================================================
-       SECTION TITLE
-    ===================================================== */
 
     function addSectionTitle(
       title: string
@@ -813,10 +1129,6 @@ export default function Home() {
 
       y += 9;
     }
-
-    /* =====================================================
-       SEQUENCE FORMATTER
-    ===================================================== */
 
     function addSequenceSection(
       title: string,
@@ -870,10 +1182,6 @@ export default function Home() {
       y += 6;
     }
 
-    /* =====================================================
-       REPORT TITLE
-    ===================================================== */
-
     pdf.setFont(
       "helvetica",
       "bold"
@@ -914,10 +1222,6 @@ export default function Home() {
     );
 
     y += 12;
-
-    /* =====================================================
-       SAMPLE INFORMATION
-    ===================================================== */
 
     pdf.setFont(
       "helvetica",
@@ -961,10 +1265,6 @@ export default function Home() {
     );
 
     y += 12;
-
-    /* =====================================================
-       NUCLEOTIDE COMPOSITION
-    ===================================================== */
 
     pdf.setFont(
       "helvetica",
@@ -1042,37 +1342,21 @@ export default function Home() {
 
     y += 15;
 
-    /* =====================================================
-       DNA SEQUENCE
-    ===================================================== */
-
     addSequenceSection(
       "DNA Sequence",
       singleResult.sequence || ""
     );
-
-    /* =====================================================
-       DNA → RNA
-    ===================================================== */
 
     addSequenceSection(
       "DNA → RNA Transcription",
       singleResult.rna || ""
     );
 
-    /* =====================================================
-       REVERSE COMPLEMENT
-    ===================================================== */
-
     addSequenceSection(
       "Reverse Complement",
       singleResult.reverse_complement ||
         ""
     );
-
-    /* =====================================================
-       PROTEIN TRANSLATION
-    ===================================================== */
 
     if (
       singleResult.protein &&
@@ -1148,10 +1432,6 @@ export default function Home() {
       y += 10;
     }
 
-    /* =====================================================
-       FOOTER ON EVERY PAGE
-    ===================================================== */
-
     const totalPages =
       pdf.getNumberOfPages();
 
@@ -1182,10 +1462,6 @@ export default function Home() {
       );
     }
 
-    /* =====================================================
-       SAVE PDF
-    ===================================================== */
-
     pdf.save(
       "DNA_Sequence_Analysis_Report.pdf"
     );
@@ -1200,6 +1476,9 @@ export default function Home() {
 
     const pdf =
       new jsPDF();
+
+    const pageHeight =
+      pdf.internal.pageSize.getHeight();
 
     let y = 20;
 
@@ -1235,7 +1514,7 @@ export default function Home() {
 
     referenceResults.forEach(
       (result, index) => {
-        if (y > 260) {
+        if (y > pageHeight - 40) {
           pdf.addPage();
           y = 20;
         }
@@ -1601,10 +1880,6 @@ export default function Home() {
 
         </div>
 
-        {/* =================================================
-            RESULTS
-        ================================================= */}
-
         {singleResult && (
 
           <div className="results-container">
@@ -1630,8 +1905,6 @@ export default function Home() {
               </button>
 
             </div>
-
-            {/* STATISTICS */}
 
             <div className="stats-grid">
 
@@ -1727,8 +2000,6 @@ export default function Home() {
 
             </div>
 
-            {/* TRANSFORMATIONS */}
-
             <div className="result-grid">
 
               <div className="result-card">
@@ -1810,8 +2081,6 @@ export default function Home() {
               </div>
 
             </div>
-
-            {/* PROTEIN */}
 
             <div className="protein-section">
 
@@ -2059,8 +2328,6 @@ export default function Home() {
 
         </div>
 
-        {/* BATCH TABLE */}
-
         {batchResults.length > 0 && (
 
           <div className="results-container">
@@ -2270,8 +2537,6 @@ export default function Home() {
 
           </div>
 
-          {/* TYPE */}
-
           {referenceMode === "type" && (
 
             <div className="reference-input">
@@ -2308,8 +2573,6 @@ export default function Home() {
             </div>
 
           )}
-
-          {/* UPLOAD */}
 
           {referenceMode === "upload" && (
 
@@ -2368,8 +2631,6 @@ export default function Home() {
               {referenceError}
             </div>
           )}
-
-          {/* PREVIEW */}
 
           {referenceSequence && (
 
@@ -2448,8 +2709,6 @@ export default function Home() {
           </div>
 
         </div>
-
-        {/* COMPARISON RESULTS */}
 
         {referenceSummary && (
 
@@ -2690,7 +2949,7 @@ export default function Home() {
 
             <p>
               Generate PDF reports from your
-              sequence and reference analyis.
+              sequence and reference analysis.
             </p>
 
           </div>
@@ -2817,3 +3076,4 @@ export default function Home() {
     </main>
   );
 }
+
