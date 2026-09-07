@@ -5,8 +5,16 @@ Designed for: Bioinformatics • Genomics • Molecular Biology
 
 Project Overview 
 
-This application enables researchers and students to quickly analyze DNA sequences without requiring command-line bioinformatics tools.
-It supports both single sequence analysis and high-throughput CSV analysis, making it suitable for educational demonstrations and small laboratory workflows.
+
+The **DNA Sequence Analyzer** is a web-based bioinformatics application designed to simplify and automate the analysis of DNA sequences. The application provides a user-friendly interface for performing fundamental DNA sequence analysis and generating organized analytical reports.
+
+The tool allows users to enter a DNA sequence manually or upload sequence data for analysis. It validates DNA sequences and calculates important sequence characteristics such as sequence length, nucleotide composition, GC content, and AT content. It also performs biological sequence transformations including reverse complement generation, DNA-to-RNA transcription, and RNA-to-protein translation.
+
+For larger datasets, the application supports **batch DNA sequence analysis through CSV file upload**, allowing multiple samples to be processed efficiently. Each sample can be analyzed individually and the results are presented in a structured format for easier interpretation.
+
+An additional **Reference Comparison** feature allows users to compare analyzed DNA samples against a reference sequence provided by the user. The application calculates positional nucleotide similarity and classifies samples as **MATCH** or **MISMATCH** using a predefined 90% similarity threshold.
+
+The application also includes **PDF report generation**, enabling users to export single-sequence analysis results and batch reference comparison results into structured reports. Long DNA sequences are automatically formatted across multiple lines and pages to improve readability.
 
 LIVE DEMO
 https://dna-sequence-analyzer-two.vercel.app/
@@ -29,9 +37,55 @@ Feature : Description
 
 * CSV Batch Analysis : Analyze hundreds of sequences simultaneously
 
+*### 🔬 Reference Comparison
+
+The DNA Sequence Analyzer includes a reference comparison feature for evaluating batch DNA samples against a reference DNA sequence.
+
+**Key capabilities:**
+- Upload or paste a reference DNA sequence.
+- Supports reference files such as CSV, TXT, FASTA, and FA.
+- Compares each sample nucleotide-by-nucleotide with the reference sequence.
+- Calculates a similarity percentage for each sample.
+- Classifies samples as **MATCH** or **MISMATCH** based on a 90% similarity threshold.
+- Provides an overall batch summary showing:
+  - Total samples
+  - Number of matched samples
+  - Number of mismatched samples
+- Displays the comparison results in an easy-to-read table.
+
+> **Note:** The similarity score is based on positional nucleotide comparison and is intended for research/educational analysis. It is not a clinically validated purity or diagnostic measurement.
+
+### 📄 PDF Report Export
+
+The application provides PDF export functionality to generate professional analysis reports.
+
+**Single DNA Analysis Report:**
+- Sample information
+- DNA sequence length
+- Nucleotide composition
+- A, T, G, and C counts
+- GC and AT content
+- DNA sequence
+- RNA transcription
+- Reverse complement
+- Protein translation
+- Codon and amino-acid information
+- Long DNA sequences are automatically formatted across multiple lines and pages for readability.
+
+**Reference Comparison Report:**
+- Reference sequence information
+- Reference sequence length
+- Similarity threshold
+- Sample-by-sample comparison results
+- Similarity percentage
+- MATCH/MISMATCH status
+- Batch comparison summary
+
+Reports can be exported directly from the application for documentation, analysis, and project reporting.
+
 Technology Stack 
 
-* Frontend : Next.js 15, React, TypeScript
+* Frontend : Next.js , React, TypeScript
 
 * Backend : FastAPI, Python
 
@@ -41,55 +95,85 @@ Technology Stack
 
 * Deployment : Vercel 
 
-Screenshots 
-
-* Home Dashboard
-  
-<img width="1379" height="685" alt="Screenshot 2026-09-03 at 7 54 22 PM" src="https://github.com/user-attachments/assets/2a6b055b-09d7-4d57-84f1-0586d2ed4aa9" />
-
-
-* Analysing DNA sequence 
-  
-<img width="1379" height="471" alt="Screenshot 2026-09-03 at 7 56 03 PM" src="https://github.com/user-attachments/assets/cfd96601-9fee-4017-975b-5108e734de04" />
-
-
-<img width="1384" height="609" alt="Screenshot 2026-09-03 at 7 56 15 PM" src="https://github.com/user-attachments/assets/91431c64-85fd-482c-844a-0a8787252599" />
-
-
-<img width="1370" height="585" alt="Screenshot 2026-09-03 at 7 56 31 PM" src="https://github.com/user-attachments/assets/5a55dac0-88fb-4d5a-b8d6-d6a99bb7f897" />
-
-
-* Analysing CSV file and its output
-<img width="1369" height="714" alt="Screenshot 2026-09-03 at 7 57 21 PM" src="https://github.com/user-attachments/assets/018881d3-4b33-44b4-95e0-9c2dc290d579" />
-
-
-<img width="1375" height="567" alt="Screenshot 2026-09-03 at 7 57 50 PM" src="https://github.com/user-attachments/assets/69de2e11-785d-45f4-afad-2c639c2d59e6" />
-
-
-<img width="1396" height="715" alt="Screenshot 2026-09-03 at 7 58 03 PM" src="https://github.com/user-attachments/assets/3a89de7c-a50c-4a82-b6b4-d55e4cd8815c" />
-
 
 DNA sequence analyzer workflow :
 
 
-<img width="340" height="420" alt="Workflow" src="https://github.com/user-attachments/assets/1daf60ce-fca3-447c-86f4-c1bfa3c56564" />
-<svg font-family="-apple-system-body, ui-sans-serif, -apple-system, system-ui, &quot;Segoe UI&quot;, Helvetica, &quot;Apple Color Emoji&quot;, Arial, sans-serif, &quot;Segoe UI Emoji&quot;, &quot;Segoe UI Symbol&quot;" font-weight="400" data-d-component="svg" fill="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" style="color:rgb(255, 255, 255)" viewBox="0 0 340 420" width="100%" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2563EB"/><stop offset="100%" stop-color="#1D4ED8"/></linearGradient><linearGradient id="purple" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7C3AED"/><stop offset="100%" stop-color="#6D28D9"/></linearGradient><linearGradient id="green" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#059669"/><stop offset="100%" stop-color="#047857"/></linearGradient><linearGradient id="orange" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#EA580C"/><stop offset="100%" stop-color="#C2410C"/></linearGradient><marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748B"/></marker><filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.15"/></filter></defs><rect width="340" height="420" rx="18" fill="#F8FAFC"/><rect x="70" y="18" width="200" height="42" rx="10" fill="url(#blue)" filter="url(#shadow)"/><text x="170" y="34" font-size="11" font-family="Arial, Helvetica, sans-serif" fill="#FFFFFF" text-anchor="middle" font-weight="bold"x1="170" y1="128" x2="170" y2="144" stroke="#64748B" stroke-dasharray="4 4" marker-end="url(#arrow)"/><rect x="34" y="144" width="272" height="110" rx="12" fill="url(#purple)" filter="url(#shadow)"/><text x="170" y="160" font-size="11" font-family="Arial, Helvetica, sans-serif" fill="#FFFFFF" text-anchor="middle" font-weight="bold"></svg>
+                    ┌──────────────────────┐
+                    │   DNA Sequence Input │
+                    │  Paste / File Upload │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │ Sequence Validation  │
+                    │  A / T / G / C only  │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                 ┌────────────────────────────┐
+                 │      DNA Sequence Analysis │
+                 └─────────────┬──────────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              ▼                ▼                ▼
+       ┌────────────┐   ┌──────────────┐  ┌──────────────┐
+       │ Sequence   │   │ Nucleotide   │  │ GC / AT      │
+       │ Length     │   │ Counts       │  │ Content      │
+       └────────────┘   └──────────────┘  └──────────────┘
+              │                │                │
+              └────────────────┼────────────────┘
+                               ▼
+                 ┌─────────────────────────┐
+                 │ Sequence Transformations│
+                 └────────────┬────────────┘
+                              │
+                 ┌────────────┼────────────┐
+                 ▼            ▼            ▼
+          ┌────────────┐ ┌──────────┐ ┌──────────────┐
+          │  Reverse   │ │ DNA → RNA│ │ 3-mer        │
+          │ Complement │ │          │ │ Frequency     │
+          └────────────┘ └────┬─────┘ └──────────────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │ RNA → Protein    │
+                    │ Translation      │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                ┌─────────────────────────┐
+                │       Batch Analysis    │
+                │       (CSV Upload)      │
+                └────────────┬────────────┘
+                             │
+                             ▼
+                ┌─────────────────────────┐
+                │ Reference Comparison    │
+                │ Paste / CSV / FASTA/TXT │
+                └────────────┬────────────┘
+                             │
+                             ▼
+                ┌─────────────────────────┐
+                │ Similarity Calculation  │
+                │     & Classification    │
+                └────────────┬────────────┘
+                             │
+                    ┌────────┴────────┐
+                    ▼                 ▼
+              ┌──────────┐      ┌────────────┐
+              │  MATCH   │      │  MISMATCH  │
+              │  ≥ 90%   │      │   < 90%    │
+              └──────────┘      └────────────┘
+                    │                 │
+                    └────────┬────────┘
+                             ▼
+                 ┌────────────────────────┐
+                 │      PDF Report        │
+                 │ Single / Batch Results │
+                 └────────────────────────┘
 
 
-## 🔮 Future Work
-
-### 1. Reference-Based Sequence Comparison
-- Support reference/expected marker profiles.
-- Compare sample profiles against a selected reference.
-- Incorporate GC/AT composition and 3-mer frequency.
-- Generate a similarity/purity percentage.
-- Classify samples as **Match / Mismatch** based on defined thresholds.
-
-### 2. PDF Report Export
-- Generate downloadable PDF reports.
-- Include sequence information and analytical metrics.
-- Include batch analysis results.
-- Provide a structured report suitable for documentation and laboratory workflows.
 
 
 
