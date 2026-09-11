@@ -37,11 +37,11 @@ Feature : Description
 
 * CSV Batch Analysis : Analyze hundreds of sequences simultaneously
 
-*### 🔬 Reference Comparison
+* 🔬 Reference Comparison
 
 The DNA Sequence Analyzer includes a reference comparison feature for evaluating batch DNA samples against a reference DNA sequence.
 
-**Key capabilities:**
+* Key capabilities:**
 - Upload or paste a reference DNA sequence.
 - Supports reference files such as CSV, TXT, FASTA, and FA.
 - Compares each sample nucleotide-by-nucleotide with the reference sequence.
